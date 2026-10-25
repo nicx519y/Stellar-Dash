@@ -1,4 +1,5 @@
 "use client";
+import { FeedbackSlot } from '@/components/ui/feedback-slot';
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Box, Button, Text } from '@chakra-ui/react';
 import { useGamepadFields } from '@/contexts/gamepad-config-context';
@@ -185,7 +186,9 @@ export function LightingResourceLibrary({type,onSource,selectionDisabled=false}:
     <LightingEffectSelector items={items} selected={type === 'key-lighting' ? profile?.keys : profile?.ambient} preview={source}
       ambient={type === 'ambient-lighting'} disabled={selectionDisabled || !!lib.busy || !ctx.deviceConnected} loading={lib.loading}
       busy={lib.busy} progress={lib.progress} onSelect={item => void lib.select(item)} onAction={item => void lib.action(item)}/>
+    <FeedbackSlot mt="2" h="64px">
     {lib.serverError && <Text fontSize="xs" mt="2" color="fg.muted">{lib.zh ? '服务器暂不可用，仍可使用已安装灯效。' : 'Server unavailable. Installed effects remain available.'}<Button size="xs" variant="ghost" onClick={() => void lib.loadCatalog()}>{lib.zh ? '重试' : 'Retry'}</Button></Text>}
     {lib.error && <Text role="alert" fontSize="xs" color="red.500" mt="2">{lib.error}</Text>}
+    </FeedbackSlot>
   </Box>;
 }

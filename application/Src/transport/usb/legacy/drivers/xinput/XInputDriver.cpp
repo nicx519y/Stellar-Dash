@@ -163,7 +163,7 @@ static bool xinput_xfer_callback(uint8_t rhport, uint8_t ep_addr, xfer_result_t 
 #if APPLICATION_DEBUG_PRINT == 1
 	if (ep_addr == endpoint_in)
 	{
-		LATENCY_MONITOR.usbInTransfer();
+		XORA_DIAGNOSTIC_CALL(LATENCY_MONITOR.usbInTransfer());
 	}
 #endif
 	if (ep_addr == endpoint_in)
@@ -263,7 +263,7 @@ void XInputDriver::process(Gamepad *gamepad)
 		{
 			usbd_edpt_claim(0, endpoint_in); // Take control of IN endpoint
 #if APPLICATION_DEBUG_PRINT == 1
-			LATENCY_MONITOR.usbInStarted();
+			XORA_DIAGNOSTIC_CALL(LATENCY_MONITOR.usbInStarted());
 #endif
 			usbd_edpt_xfer(0, endpoint_in, (uint8_t *)&xinputReport, sizeof(XInputReport)); // Send report buffer
 			usbd_edpt_release(0, endpoint_in);												// Release control of IN endpoint

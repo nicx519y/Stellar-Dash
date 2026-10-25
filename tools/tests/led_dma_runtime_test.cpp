@@ -809,10 +809,43 @@ static void calibrationRefresh() {
     drain(1);
 }
 
+static void powerLimit() {
+    begin(WS2812B_STRIP_KEYS,255,255,255);
+    drain(0);
+    WS2812B_SetPowerLimit(25);
+    assert(pixel(0,0)==RGBToHex(64,64,64));
+    auto active=snapshot(0);
+    WS2812B_SetPowerLimit(50);
+    unchanged(0,active); // Do not overwrite an in-flight DMA frame.
+    drain(0);
+    WS2812B_SetPowerLimit(50); // pending budget update is retried
+    assert(pixel(0,0)==RGBToHex(128,128,128));
+    drain(0);
+    begin(WS2812B_STRIP_AMBIENT,255,0,0);
+    WS2812B_SetPowerLimit(0); // Stop both strips, including ambient in-flight DMA.
+    assert(!rail[0] && !rail[1]);
+    assert(!(dmas[0].Instance->CR & DMA_SxCR_EN));
+    assert(!(dmas[1].Instance->CR & DMA_SxCR_EN));
+    assert(WS2812B_StartStrip(WS2812B_STRIP_KEYS)==WS2812B_STOP && !rail[0]);
+    WS2812B_StopStrip(WS2812B_STRIP_AMBIENT); // user disables ambient while limited
+    WS2812B_SetPowerLimit(25);
+    assert(rail[0] && !rail[1]);
+    assert(pixel(0,0)==RGBToHex(64,64,64));
+    drain(0);
+    WS2812B_SetPowerLimit(100);
+    assert(pixel(0,0)==RGBToHex(255,255,255)); // configuration was not overwritten
+    drain(0);
+    WS2812B_SetPowerLimit(0);
+    WS2812B_Stop(); // sleep/state exit cancels automatic resumption
+    WS2812B_SetPowerLimit(100);
+    assert(!rail[0] && !rail[1]);
+}
+
 int main(int argc, char** argv) {
     assert(argc == 2);
     std::string name = argv[1];
     if (name == "normal") normal();
+    else if (name == "power-limit") powerLimit();
     else if (name == "delayed") delayed();
     else if (name == "dual") dual();
     else if (name == "error") error();

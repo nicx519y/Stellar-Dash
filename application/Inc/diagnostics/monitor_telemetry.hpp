@@ -89,7 +89,8 @@ static_assert(sizeof(MonitorPowerFrameV2) == 32, "MonitorPowerFrameV2 must stay 
 
 void MonitorTelemetry_Init(ConnectionMode mode, uint16_t targetRateHz);
 void MonitorTelemetry_SetTargetRateHz(uint16_t targetRateHz);
-uint32_t MonitorTelemetry_NextSequence();
+// SPI input identity must advance even with diagnostics disabled.
+uint32_t InputReport_NextSequence();
 void MonitorTelemetry_OnReportReady(uint32_t seq,
                                     uint32_t triggerCycles,
                                     uint32_t completeCycles);
@@ -106,6 +107,24 @@ bool MonitorTelemetry_FillFrameV1(MonitorTelemetryFrameV1* out);
 bool MonitorTelemetry_FillPowerFrameV1(MonitorPowerFrameV1* out);
 bool MonitorTelemetry_FillPowerFrameV2(MonitorPowerFrameV2* out);
 
-#endif
-
 bool MonitorTelemetry_GetReportStages(uint32_t seq,uint32_t* trigger,uint32_t* complete,uint32_t* ready);
+
+#include "diagnostics_policy.h"
+#ifndef XORA_MONITOR_IMPLEMENTATION
+#define MonitorTelemetry_Init(...) XORA_DIAGNOSTIC_CALL(MonitorTelemetry_Init(__VA_ARGS__))
+#define MonitorTelemetry_SetTargetRateHz(...) XORA_DIAGNOSTIC_CALL(MonitorTelemetry_SetTargetRateHz(__VA_ARGS__))
+#define MonitorTelemetry_OnReportReady(...) XORA_DIAGNOSTIC_CALL(MonitorTelemetry_OnReportReady(__VA_ARGS__))
+#define MonitorTelemetry_SetPendingUsbSeq(...) XORA_DIAGNOSTIC_CALL(MonitorTelemetry_SetPendingUsbSeq(__VA_ARGS__))
+#define MonitorTelemetry_OnUsbReportSubmitted(...) XORA_DIAGNOSTIC_CALL(MonitorTelemetry_OnUsbReportSubmitted(__VA_ARGS__))
+#define MonitorTelemetry_OnRfTransfer(...) XORA_DIAGNOSTIC_CALL(MonitorTelemetry_OnRfTransfer(__VA_ARGS__))
+#define MonitorTelemetry_OnLinkStateChanged(...) XORA_DIAGNOSTIC_CALL(MonitorTelemetry_OnLinkStateChanged(__VA_ARGS__))
+#define MonitorTelemetry_OnError(...) XORA_DIAGNOSTIC_CALL(MonitorTelemetry_OnError(__VA_ARGS__))
+#define MonitorTelemetry_SetCh585Status(...) XORA_DIAGNOSTIC_CALL(MonitorTelemetry_SetCh585Status(__VA_ARGS__))
+#define MonitorTelemetry_GetReportTriggerCycles(...) (XORA_DIAGNOSTICS_ENABLED && MonitorTelemetry_GetReportTriggerCycles(__VA_ARGS__))
+#define MonitorTelemetry_FillFrameV1(...) (XORA_DIAGNOSTICS_ENABLED && MonitorTelemetry_FillFrameV1(__VA_ARGS__))
+#define MonitorTelemetry_FillPowerFrameV1(...) (XORA_DIAGNOSTICS_ENABLED && MonitorTelemetry_FillPowerFrameV1(__VA_ARGS__))
+#define MonitorTelemetry_FillPowerFrameV2(...) (XORA_DIAGNOSTICS_ENABLED && MonitorTelemetry_FillPowerFrameV2(__VA_ARGS__))
+#define MonitorTelemetry_GetReportStages(...) (XORA_DIAGNOSTICS_ENABLED && MonitorTelemetry_GetReportStages(__VA_ARGS__))
+#define MonitorTelemetry_NextSequence() InputReport_NextSequence()
+#endif
+#endif

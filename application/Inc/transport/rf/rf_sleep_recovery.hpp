@@ -2,7 +2,7 @@
 #include "rf_transport.hpp"
 #include "rf_command_transaction.hpp"
 
-enum class RfSleepState { Off, PowerWait, BootWait, SelectRole, ConfigureRate, VerifyStatus, Ready, RetryWait, ApplicationWait, Failed };
+enum class RfSleepState { Off, PowerWait, BootWait, SelectRole, ConfigureRate, VerifyStatus, Ready, RetryWait, ApplicationWait, ConfigureDiagnostics, Failed };
 enum class RfSleepError : uint32_t { None, PortStop, Role, PortStart, Receive, RateSend, StatusTimeout, Neutral, FrameRejected };
 
 // Sole SPI4 owner between RF sleep preparation and a validated new session.

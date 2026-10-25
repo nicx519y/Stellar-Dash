@@ -6,6 +6,7 @@ import { batteryEventName, decodeBatteryRecord } from '@/lib/battery-test-logs';
 import type { FaultLogPage, FaultRecord } from '@/lib/device-fault-logs';
 import { WEB_FONT_FAMILY } from '@/lib/ui-typography';
 import { chargeSummary } from '@/lib/charge-test-logs';
+import { gameLinkText } from '@/lib/game-link-logs';
 
 const columns = { base: '80px 54px minmax(0, 1fr) 16px', md: '54px 112px 60px 72px minmax(0, 1fr) 44px 16px' };
 const firmware = (value: number) => `${value >>> 16}.${(value >>> 8) & 255}.${value & 255}`;
@@ -86,8 +87,9 @@ export function DeviceLogList({ page, language, scrollRef }: { page: FaultLogPag
       const key = keyOf(record, index);
       const level = record.severity === 4 ? 'FATAL' : record.severity === 3 ? 'ERROR' : record.severity === 1 ? 'INFO' : 'WARN';
       const palette = record.severity === 4 ? 'red' : record.severity === 3 ? 'orange' : record.severity === 1 ? 'blue' : 'yellow';
-      const name = (page.source === 'battery' ? batteryEventName(record.event, language) : undefined) ?? events[record.event] ?? `${zh ? '事件' : 'Event'} ${record.event}`;
-      const description = page.source === 'battery' ? batteryDescription(record, zh) : '';
+      const connection = page.source !== 'battery' ? gameLinkText(record, language) : null;
+      const name = connection?.name ?? (page.source === 'battery' ? batteryEventName(record.event, language) : undefined) ?? events[record.event] ?? `${zh ? '事件' : 'Event'} ${record.event}`;
+      const description = connection?.description ?? (page.source === 'battery' ? batteryDescription(record, zh) : '');
       return <MeasuredRow key={key} onHeight={height => measure(key, height)}><Collapsible.Root lazyMount unmountOnExit
         open={!!expanded[key]} onOpenChange={details => setExpanded(current => ({ ...current, [key]: details.open }))}
         borderBottomWidth="1px">
@@ -118,6 +120,9 @@ export function DeviceLogList({ page, language, scrollRef }: { page: FaultLogPag
               <Text>event={record.event}</Text><Text>count={record.repeat}</Text>
             </HStack>
             {page.source === 'battery' && <Box as="pre" overflowX="auto" whiteSpace="pre" color="fg" mb={2}>{JSON.stringify(decodeBatteryRecord(record), null, 2)}</Box>}
+            {connection && <Text mb={2}>{connection.details}<br />{page.source === 'stm32'
+              ? zh ? '主控记录本地采样、角色及板间恢复结果，端点进度请结合 TX / RX 日志查看。' : 'Controller records describe local sampling, roles and board-link recovery. Check TX / RX logs for endpoint progress.'
+              : zh ? '完成计数：TX 的 RF 模式表示有效 ACK，其余表示 USB 端点完成；不代表游戏已处理。' : 'Completions: valid ACKs for TX in RF mode; USB endpoint completions otherwise. This does not confirm game processing.'}</Text>}
             <HStack gapX={4} gapY={1} flexWrap="wrap" color="fg.muted">
               {record.data.map((value, i) => <Text key={i}>[{String(i).padStart(2, '0')}]=<Box as="span" color="fg">0x{value.toString(16).padStart(8, '0')}</Box></Text>)}
             </HStack>

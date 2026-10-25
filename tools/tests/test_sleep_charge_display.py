@@ -180,6 +180,7 @@ int main() {
 #include <cassert>
 #include <cstdint>
 bool g_bl_static=false,g_bl_tim_ready=true,on=false; uint8_t g_bl_percent=0;
+bool g_hw_ready=true; uint8_t g_bl_power_limit=100;
 unsigned mode=0,compare=0,pwmWrites=0; int g_bl_htim=0;
 enum {GPIO_PIN_RESET,GPIO_PIN_SET,GPIO_MODE_OUTPUT_PP,GPIO_MODE_AF_PP,GPIO_NOPULL,GPIO_SPEED_FREQ_LOW};
 constexpr auto ST7789_BL_ON_STATE=GPIO_PIN_RESET,ST7789_BL_OFF_STATE=GPIO_PIN_SET;
@@ -194,7 +195,7 @@ unsigned SPIST7789_BacklightCompare(unsigned a,unsigned p,bool) {return (a+1)*(1
 void __HAL_TIM_SET_COMPARE(int*,int,unsigned value) {compare=value;++pwmWrites;}
 '''
         for signature in ('static void backlight_gpio_drive(', 'void SPIST7789_SetBacklight(',
-                          'void SPIST7789_SetBacklightStatic('):
+                          'void SPIST7789_SetBacklightStatic(', 'void SPIST7789_SetPowerLimit('):
             harness += function(driver, signature)
         harness += r'''
 int main() {
@@ -204,6 +205,18 @@ int main() {
     SPIST7789_SetBacklight(0); assert(!on);
     SPIST7789_SetBacklight(30); SPIST7789_SetBacklightStatic(false);
     assert(mode==GPIO_MODE_AF_PP && compare==700 && !g_bl_static);
+    SPIST7789_SetBacklightStatic(true);
+    SPIST7789_SetPowerLimit(10);
+    assert(!g_bl_static && mode==GPIO_MODE_AF_PP && compare==900);
+    SPIST7789_SetBacklight(100); SPIST7789_SetBacklightStatic(true);
+    assert(!g_bl_static && compare==900 && g_bl_percent==100);
+    SPIST7789_SetPowerLimit(100); assert(compare==0); // restore original request
+    SPIST7789_SetBacklight(0); SPIST7789_SetPowerLimit(10);
+    assert(compare==1000); // never light a screen that the user switched off
+    g_bl_tim_ready=false;
+    SPIST7789_SetBacklight(100); assert(!on); // PWM failure must not bypass cap
+    g_hw_ready=false;
+    writes=pwmWrites; SPIST7789_SetPowerLimit(20); assert(pwmWrites==writes);
 }
 '''
         self.run_cpp(harness)

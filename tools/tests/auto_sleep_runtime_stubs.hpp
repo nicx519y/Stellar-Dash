@@ -42,6 +42,7 @@ inline void __ISB() {}
 inline void __WFI() { ++idleCount; }
 inline bool stopOk = true, recoveryStopFault = false;
 inline uint32_t simulatedWakePins = 0, lastStopInterval = 0;
+inline uint32_t protectionStopCalls = 0;
 inline bool SystemStop_ConsumeRecoveryFault(bool, bool) { return recoveryStopFault; }
 inline bool SystemStop_Enter(uint32_t interval, uint32_t* pins) {
     if (!stopOk) return false;
@@ -51,6 +52,11 @@ inline bool SystemStop_Enter(uint32_t interval, uint32_t* pins) {
     *pins = simulatedWakePins;
     simulatedWakePins = 0;
     return true;
+}
+inline bool SystemStop_EnterProtection(uint32_t interval, uint32_t* pins) {
+    if (!stopOk) return false;
+    ++protectionStopCalls;
+    return SystemStop_Enter(interval,pins);
 }
 inline void __disable_irq() { irqMask = 1; }
 inline uint32_t __get_PRIMASK() { return irqMask; }
@@ -155,8 +161,9 @@ inline bool RFBridgePort_IsInputIdle() { return bridgeIdle; }
 inline bool RFBridgePort_HasPendingEvent() { return bridgeEvent; }
 
 #include "sleep_diagnostics.hpp"
+inline volatile uint8_t g_xora_diagnostics_enabled = 1;
 inline volatile SleepDiagnostics g_sleepDiagnostics = {};
-inline void SleepDiagnostics_Record(SleepStage stage, uint32_t error) {
+inline void (SleepDiagnostics_Record)(SleepStage stage, uint32_t error) {
     g_sleepDiagnostics.stage = static_cast<uint32_t>(stage);
     g_sleepDiagnostics.lastError = error;
 }

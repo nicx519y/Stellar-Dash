@@ -7,6 +7,9 @@
 #undef private
 
 static uint32_t now;
+static uint8_t ledLimit = 100, lcdLimit = 100;
+extern "C" void WS2812B_SetPowerLimit(uint8_t value) { ledLimit = value; }
+extern "C" void SPIST7789_SetPowerLimit(uint8_t value) { lcdLimit = value; }
 uint32_t HAL_GetTick() { return now; }
 void HAL_Delay(uint32_t ms) { now += ms; }
 uint32_t __get_PRIMASK() { return 0; }
@@ -171,9 +174,14 @@ int main() {
     assert(regs[0]==0x5c && regs[4]==0x19 && regs[6]==0x5a);
     assert((regs[2]&0x40) && (regs[3]&0x10));
     // Gauge outage retains display value, never measurement validity.
+    const auto retainedSoc=p.getSnapshot().soc_permille;
+    // Cold boot used raw SOC once. The fake ADC reports zero charge current;
+    // neither raised voltage nor the unconfirmed Full interval may add SOC.
+    assert(retainedSoc==500 && p.getSnapshot().soc_estimated);
+    assert(p.getSnapshot().raw_soc_permille==gaugeState.soc_permille);
     gaugeOk=false; cycle(p);
     auto s=p.getSnapshot();
-    assert(!s.valid && s.data_quality==PowerDataQuality::Stale && s.soc_permille==500);
+    assert(!s.valid && s.data_quality==PowerDataQuality::Stale && s.soc_permille==retainedSoc);
     assert(!board.charge);
     now+=10001;
     assert(p.getSnapshot().data_quality==PowerDataQuality::Unknown);
@@ -200,13 +208,16 @@ int main() {
     gaugeState={3800,500,0,false,true};
     for(unsigned i=0;i<20;++i) cycle(depleted);
     assert(depleted.batteryProtectionRequired() && !depleted.acknowledgeBatteryRecovery());
+    // Qualified power makes a depleted cell ready on the first published sample.
+    gaugeState={3100,40,0,false,true};
     regs[0x11]=0x80|24; regs[0x0b]=0x04|(2<<3);
-    for(unsigned i=0;i<12;++i) cycle(depleted);
+    cycle(depleted);
     assert(depleted.getSnapshot().battery_level==BatteryLevel::RecoveryReady);
+    assert(depleted.getSnapshot().soc_permille==0); // protected empty start survives plug-in
+    assert(ledLimit==0 && lcdLimit==10);
     now+=2600; assert(!depleted.acknowledgeBatteryRecovery());
-    cycle(depleted); // freshness gap requires another complete recovery window
-    assert(!depleted.acknowledgeBatteryRecovery());
-    for(unsigned i=0;i<10;++i) cycle(depleted);
+    cycle(depleted); // fresh qualified input restores readiness without a timer
+    assert(depleted.getSnapshot().battery_level==BatteryLevel::RecoveryReady);
     // A fault read must revoke the old ready snapshot before Publish, so a
     // simultaneous knob release cannot resume loads using the previous cycle.
     faultHistory=0x10; faultReads=0;
@@ -218,9 +229,87 @@ int main() {
     faultHistory=0;
     for(unsigned i=0;i<24;++i) cycle(depleted);
     assert(depleted.acknowledgeBatteryRecovery());
+    for(unsigned i=0;i<12;++i) {
+        cycle(depleted);
+        assert(board.charge && !depleted.batteryProtectionRequired());
+    }
+    regs[0x11]=regs[0x0b]=0;
+    cycle(depleted);
+    assert(!depleted.batteryProtectionRequired());
+    for(unsigned i=0;i<3;++i) cycle(depleted);
+    assert(depleted.batteryProtectionRequired());
+    // An attached cable with out-of-range VBUS is not qualified power.
+    regs[0x11]=0x80|44; regs[0x0b]=0x04|(2<<3); // 7 V, outside 5/9 V windows
+    cycle(depleted);
+    assert(depleted.getSnapshot().charge_block==PowerChargeBlock::InputRange);
+    assert(!depleted.acknowledgeBatteryRecovery());
+    // Restore good VBUS, then exhaust it while the low-cell device runs.
+    regs[0x11]=0x80|24;
+    cycle(depleted);
+    assert(depleted.acknowledgeBatteryRecovery());
+    regs[0x13]=0x40; // IINDPM; charge ADC remains zero
+    for(unsigned i=0;i<7;++i) cycle(depleted);
+    assert(depleted.batteryProtectionRequired());
+    assert(depleted.getSnapshot().supply_recovery_locked);
+    assert(ledLimit==0 && lcdLimit==10 && !depleted.acknowledgeBatteryRecovery());
+    regs[0x13]=0; regs[0x12]=6; // 300 mA charging after load shedding
+    gaugeState={3500,140,0,false,true};
+    for(unsigned i=0;i<35;++i) cycle(depleted);
+    assert(!depleted.acknowledgeBatteryRecovery());
+    gaugeState={3550,150,0,false,true};
+    for(unsigned i=0;i<31;++i) cycle(depleted);
+    assert(!depleted.acknowledgeBatteryRecovery()); // Voltage rebound is not 15% charge.
+    regs[0x12]=30; // Real battery-side 1500mA, enough integrated charge to unlock retry.
+    for(unsigned i=0;i<2800;++i) cycle(depleted);
+    assert(depleted.getSnapshot().soc_permille>=150);
+    assert(depleted.acknowledgeBatteryRecovery());
     ioOk=false; depleted.notifyChargerIrqFromISR(); depleted.loop();
     assert(!depleted.getSnapshot().valid && !board.charge && !depleted.isFastCharging());
     while(depleted.isPolling()) { ++now; depleted.loop(); }
     assert(!depleted.getSnapshot().valid);
+    // End-to-end consumers use calibrated SOC, not the deliberately misleading gauge SOC.
+    ioOk=gaugeOk=true; faultHistory=faultCurrent=0;
+    regs[0x11]=regs[0x0b]=regs[0x13]=0;
+    gaugeState={3600,20,0,false,true};
+    PowerManager calibrated;
+    calibrated.setup();
+    for(unsigned i=0;i<15;++i) cycle(calibrated);
+    assert(calibrated.getSnapshot().soc_permille==426);
+    assert(calibrated.getSnapshot().raw_soc_permille==20);
+    assert(calibrated.getTotalSocPercent()>42.5f && calibrated.getTotalSocPercent()<42.7f);
+    assert(!calibrated.isLowBattery());
+    gaugeState={3440,0,0,false,true};
+    for(unsigned i=0;i<15;++i) cycle(calibrated);
+    assert(!calibrated.isLowBattery()); // old 3.45V warning no longer overrides calibrated >10%
+    gaugeState={3429,950,0,false,true};
+    for(unsigned i=0;i<340;++i) cycle(calibrated);
+    assert(calibrated.isLowBattery() && calibrated.getSnapshot().soc_permille==100);
+    assert(calibrated.getSnapshot().sleepMaintenanceIntervalMs()==1000u);
+    gaugeState={3474,0,0,false,true};
+    for(unsigned i=0;i<31;++i) cycle(calibrated);
+    assert(calibrated.isLowBattery() && calibrated.getSnapshot().soc_permille==100); // rebound cannot recharge
+    regs[0x11]=0x80|24; regs[0x0b]=0x04|(2<<3); regs[0x12]=30;
+    for(unsigned i=0;i<1000;++i) cycle(calibrated);
+    assert(!calibrated.isLowBattery() && calibrated.getSnapshot().soc_permille>=150);
+    regs[0x11]=regs[0x0b]=0;
+    for(unsigned i=0;i<35;++i) cycle(calibrated);
+    assert(calibrated.getSnapshot().sleepMaintenanceIntervalMs()==5000u);
+    gaugeState={3200,950,0,false,true};
+    for(unsigned i=0;i<4;++i) cycle(calibrated);
+    assert(calibrated.batteryProtectionRequired()); // raw voltage protection is independent
+    // Full-cell charging termination with IINDPM is not a low-battery recovery
+    // session. Verify the real manager publishes no warning or driver limit.
+    gaugeState={4190,980,0,false,true};
+    regs[0x11]=0x80|24; regs[0x0b]=0x04|(3<<3);
+    regs[0x12]=0; regs[0x13]=0x40;
+    PowerManager fullCell;
+    fullCell.setup();
+    for(unsigned i=0;i<40;++i) cycle(fullCell);
+    const auto fullPower=fullCell.getSnapshot();
+    assert(fullPower.valid && fullPower.charge_state==PowerChargeState::Full);
+    assert(fullPower.cell_mv==4190 && fullPower.input_current_regulation);
+    assert(!fullPower.supply_insufficient && !fullPower.supply_recovery_locked);
+    assert(fullPower.led_power_percent==100 && fullPower.lcd_power_percent==100);
+    assert(ledLimit==100 && lcdLimit==100 && !fullCell.batteryProtectionRequired());
     puts("battery manager: full/IRQ/catchup, fault latch, recovery, profiles and stale data passed");
 }

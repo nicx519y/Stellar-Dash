@@ -221,7 +221,7 @@ export default function AdminServiceTokensPage() {
 
   return <>
     <AdminPageHeader title={copy.title} description={copy.description}
-      actions={isAdmin && !sessionLoading ? <Button ref={createButton} colorPalette="green" onClick={() => setCreateOpen(true)}><LuKeyRound />{copy.createToken}</Button> : undefined} />
+      actions={isAdmin || sessionLoading ? <Button visibility={sessionLoading ? "hidden" : "visible"} disabled={sessionLoading} ref={createButton} colorPalette="green" onClick={() => setCreateOpen(true)}><LuKeyRound />{copy.createToken}</Button> : undefined} />
     {sessionLoading ? (
       <Center minHeight="320px"><Spinner size="lg" colorPalette="green" /></Center>
     ) : !session.authenticated ? (
@@ -236,8 +236,8 @@ export default function AdminServiceTokensPage() {
               <Text fontSize="sm" color="fg.muted">{copy.listDescription}</Text></Stack>
             <Badge variant="subtle">{tokens.length}</Badge>
           </Flex>
-          <Box overflowX="auto">
-            <Table.Root size="sm" minWidth="720px" interactive>
+          <Box overflow="auto" h="320px" minH="260px" css={{ scrollbarGutter: "stable" }}>
+            <Table.Root tableLayout="fixed" css={{ "& td": { overflowWrap: "anywhere" } }} size="sm" minWidth="720px" interactive>
               <Table.Header><Table.Row>
                 <Table.ColumnHeader>{copy.tokenName}</Table.ColumnHeader>
                 <Table.ColumnHeader>{copy.scopes}</Table.ColumnHeader>
@@ -264,10 +264,11 @@ export default function AdminServiceTokensPage() {
                 })}
               </Table.Body>
             </Table.Root>
-          </Box>
           {!loading && tokens.length === 0 && (
             <Text color="fg.muted" textAlign="center">{copy.noTokens}</Text>
           )}
+          </Box>
+
         </Stack>
       </AdminCard>
     )}

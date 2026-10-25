@@ -2,6 +2,10 @@
 #include "board_cfg.h"
 #include "board_power.hpp"
 
+static uint8_t g_power_limit = 100u;
+static bool g_power_resume[2] = {false, false};
+static bool g_power_update[2] = {false, false};
+
 /* WS2812B-Mini-V3J data protocol (datasheet):
 |-------------------------------------------|
 |T0H | 220ns ~ 380ns
@@ -287,7 +291,7 @@ static void led_data_to_buffer(WS2812B_Strip strip,
 
     for (uint16_t led = start; led < end; led++) {
         uint16_t cidx = (uint16_t)(led * 3u);
-        const uint16_t brightness = br[led];
+        const uint16_t brightness = ((uint16_t)br[led] * g_power_limit + 50u) / 100u;
         uint32_t color = RGBToHex(
             (uint8_t)(((uint16_t)colors[cidx] * brightness + 127u) / 255u),
             (uint8_t)(((uint16_t)colors[cidx + 1u] * brightness + 127u) / 255u),
@@ -564,6 +568,10 @@ void WS2812B_InitStrip(WS2812B_Strip strip)
 
 WS2812B_StateTypeDef WS2812B_StartStrip(WS2812B_Strip strip)
 {
+    if (g_power_limit == 0u) {
+        g_power_resume[strip] = true;
+        return WS2812B_STOP;
+    }
     volatile WS2812B_StateTypeDef* st = strip_state(strip);
     if (*st != WS2812B_STOP) {
         /* ERROR requires explicit Stop before retrying. */
@@ -613,6 +621,8 @@ WS2812B_StateTypeDef WS2812B_StartStrip(WS2812B_Strip strip)
 
 WS2812B_StateTypeDef WS2812B_StopStrip(WS2812B_Strip strip)
 {
+    g_power_resume[strip] = false;
+    g_power_update[strip] = false;
     volatile WS2812B_StateTypeDef* st = strip_state(strip);
     if (!((strip == WS2812B_STRIP_AMBIENT) ? g_ambient_initialized : g_keys_initialized)) {
         strip_power_write(strip, false);
@@ -840,6 +850,32 @@ bool WS2812B_SubmitStrip(WS2812B_Strip strip)
 void WS2812B_ServiceStrip(WS2812B_Strip strip)
 {
     (void)WS2812B_SubmitStrip(strip);
+}
+
+void WS2812B_SetPowerLimit(uint8_t percent)
+{
+    if (percent > 100u) percent = 100u;
+    const bool changed = percent != g_power_limit;
+    g_power_limit = percent;
+    for (unsigned i = 0u; i < 2u; ++i) {
+        const WS2812B_Strip strip = (WS2812B_Strip)i;
+        if (percent == 0u) {
+            const bool resume = g_power_resume[i] || *strip_state(strip) == WS2812B_RUNNING;
+            if (*strip_state(strip) != WS2812B_STOP) (void)WS2812B_StopStrip(strip);
+            g_power_resume[i] = resume;
+            continue;
+        }
+        if (g_power_resume[i]) {
+            g_power_resume[i] = false;
+            (void)WS2812B_StartStrip(strip);
+        }
+        if (*strip_state(strip) != WS2812B_RUNNING) continue;
+        if (changed) g_power_update[i] = true;
+        if (g_power_update[i]) {
+            *strip_dirty_flag(strip) = true;
+            if (WS2812B_SubmitStrip(strip)) g_power_update[i] = false;
+        }
+    }
 }
 
 void WS2812B_GetUpdateStats(WS2812B_Strip strip,

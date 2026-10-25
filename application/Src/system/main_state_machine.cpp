@@ -20,6 +20,7 @@
 #include "states/battery_protection_state.hpp"
 #include "system_logger.h"
 #include "fault_log_api.h"
+#include "game_link_log.h"
 #include "battery_test_log.h"
 #include "usb_board_link.hpp"
 #include "system_sleep_manager.hpp"
@@ -71,7 +72,7 @@ void MainStateMachine::initializeInteractiveRuntime(bool overlapInputStartup)
     if (interactiveRuntimeInitialized) return;
 
     XoraLog_Init();
-    XoraLog_Service(1); // Before transport, screen or configuration writers start.
+    XoraLog_SaveFaultWindow(); // Before transport, screen or configuration writers start.
     if (BatteryTest_Init) BatteryTest_Init();
     if (BatteryTest_Service) BatteryTest_Service(1);
     const LogResult logResult = Logger_Init(false, LOG_LEVEL_DEBUG);

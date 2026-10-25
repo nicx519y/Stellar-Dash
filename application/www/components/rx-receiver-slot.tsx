@@ -1,4 +1,5 @@
 'use client';
+import { FeedbackSlot } from '@/components/ui/feedback-slot';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Badge, Box, Button, Flex, HStack, Image, SimpleGrid, Text, VStack } from '@chakra-ui/react';
 import { LuCheck } from 'react-icons/lu';
@@ -20,6 +21,7 @@ const copy = {
     failed: '读取或配对失败，请重新读取设备状态。', disconnected: '接收器已断开。',
     busy: '设备正忙，请完成其他操作后重试。', conflict: '存在其他未完成的配对，请连接原来的 XORA 和接收器继续完成。',
     storage: '设备保存失败，请重新读取状态后重试。', timeout: '接收器未回复，请确认固件支持配对且未被其他程序占用。',
+    paused: '接收器信息读取已暂停，等待当前设备操作完成。', unread: '接收器已连接，尚未读取绑定信息。',
   },
   en: {
     title: 'Dongle', select: 'Select receiver', change: 'Change receiver', missing: 'No authorized receiver detected',
@@ -32,6 +34,7 @@ const copy = {
     failed: 'Read or pairing failed. Read device state again.', disconnected: 'Receiver disconnected.',
     busy: 'Device is busy. Finish the other operation first.', conflict: 'Another pairing is incomplete. Reconnect its original XORA and receiver to finish.',
     storage: 'Device could not save the binding. Read state before retrying.', timeout: 'Receiver did not reply. Check firmware support and whether another application is using it.',
+    paused: 'Receiver reads are paused until the current device operation finishes.', unread: 'Receiver connected. Binding information has not been read yet.',
   },
 };
 
@@ -98,7 +101,7 @@ export function RxReceiverSlot({ disabled = false }: { disabled?: boolean }) {
   useEffect(() => {
     void refresh(); const timer = setInterval(() => { if (!document.hidden) void refresh(); }, 2000);
     return () => clearInterval(timer);
-  }, [refresh, deviceConnected]);
+  }, [refresh, deviceConnected, blocked]);
   const select = async () => {
     if (busy.current) return;
     try {
@@ -129,7 +132,8 @@ export function RxReceiverSlot({ disabled = false }: { disabled?: boolean }) {
     error.includes('BUSY') || error.includes('STATUS_5') ? t.busy : error.includes('DISCONNECTED') ? t.disconnected :
     error.includes('STATUS_3') ? t.storage : error.includes('TIMEOUT') ? t.timeout : t.failed;
   const statusText = errorText || (connecting ? t.connecting : reading && !states ? t.reading :
-    !deviceConnected ? t.host : states ? working ? t.pairing : done ? t.paired : pending ? t.incomplete : t.unpaired : '');
+    !deviceConnected ? t.host : working ? t.pairing : client && blocked ? t.paused :
+    states ? done ? t.paired : pending ? t.incomplete : t.unpaired : client ? t.unread : '');
   return (
     <Box as="section" aria-label={t.title} borderWidth="1px" borderColor="border.subtle" borderRadius="lg" bg="bg.subtle" p={4} w="100%">
       <VStack align="stretch" gap={4}>
@@ -143,11 +147,13 @@ export function RxReceiverSlot({ disabled = false }: { disabled?: boolean }) {
               </Text>
             </Box>
           </HStack>
+          <FeedbackSlot h="64px" w={{ base: "full", md: "280px" }}>
           {statusText && <Badge size="sm" variant="subtle" colorPalette={errorText ? 'red' : connecting || reading || working || pending ? 'orange' : done ? 'green' : 'gray'}
             role={errorText ? 'alert' : 'status'} textTransform="none" letterSpacing="normal" ml="auto" maxW={{ base: '100%', sm: '320px' }} whiteSpace="normal" textAlign="right" overflowWrap="anywhere">
             {done && !working && !errorText && <LuCheck />}
             {statusText}
           </Badge>}
+          </FeedbackSlot>
         </Flex>
 
         <SimpleGrid as="dl" columns={{ base: 1, sm: 2 }} gap={3}>
@@ -168,15 +174,15 @@ export function RxReceiverSlot({ disabled = false }: { disabled?: boolean }) {
         </SimpleGrid>
 
         <VStack align="stretch" gap={2} aria-live="polite">
-          {replacing && <Text fontSize="xs" color="fg.muted">{t.replace}</Text>}
-          <Flex gap={2} wrap="wrap">
+          <FeedbackSlot>{replacing && <Text fontSize="xs" color="fg.muted">{t.replace}</Text>}</FeedbackSlot>
+          <Flex gap={2} wrap="wrap" minH="72px" alignContent="start">
             {!done && states && <Button size="sm" colorPalette="green" disabled={blocked || reading || working || !!error} onClick={() => void pair()}>{working ? t.pairing : pending ? t.resume : t.pair}</Button>}
             <Button size="sm" variant={client ? 'outline' : 'solid'} colorPalette={client ? 'gray' : 'green'} disabled={working || reading} onClick={() => void select()}>{client ? t.change : t.select}</Button>
-            {error && client && <Button size="sm" variant="outline" disabled={blocked || reading || working} onClick={() => void refresh()}>{t.retry}</Button>}
+            {client && (error || !states) && <Button size="sm" variant="outline" disabled={blocked || reading || working} onClick={() => void refresh()}>{t.retry}</Button>}
             {states && canCancelBinding(states.rx, states.tx) && <Button size="sm" variant="ghost" disabled={blocked || reading || working || !!error} onClick={() => void pair(true)}>{t.cancel}</Button>}
           </Flex>
         </VStack>
-        <Text fontSize="xs" color="fg.muted" lineHeight="1.6">{client ? t.hint : t.permission}</Text>
+        <Box display="grid">{[t.hint, t.permission].map((text, index) => <Text key={index} gridArea="1 / 1" fontSize="xs" color="fg.muted" lineHeight="1.6" visibility={(index === 0) === !!client ? "visible" : "hidden"} aria-hidden={(index === 0) !== !!client}>{text}</Text>)}</Box>
       </VStack>
     </Box>
   );

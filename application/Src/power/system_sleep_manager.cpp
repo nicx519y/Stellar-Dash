@@ -26,6 +26,7 @@ SleepReleaseGate releaseGate;
 SleepWakeKeys wakeKeys; // ISR-owned; main reads only with interrupts masked.
 volatile bool keysReady = false;
 bool resetInhibit = false;
+bool protectionStopInhibit = false;
 bool userEnabled = false;
 uint32_t configuredTimeout = 0u;
 bool idleContextValid = false;
@@ -100,9 +101,12 @@ extern "C" void SystemSleep_CaptureBootFlags(void)
     const bool cold = (flags & (RCC_RSR_PORRSTF | RCC_RSR_BORRSTF)) != 0u;
     const bool software = (flags & RCC_RSR_SFTRSTF) != 0u;
     const bool stopFault = SystemStop_ConsumeRecoveryFault(cold, software);
-    resetInhibit = (flags & (RCC_RSR_IWDG1RSTF |
-        RCC_RSR_WWDG1RSTF | RCC_RSR_LPWRRSTF)) != 0u ||
-        (!cold && !software && (flags & (RCC_RSR_PINRSTF | RCC_RSR_CPURSTF)) != 0u) || stopFault;
+    // Keep actual watchdog/low-power/clock faults as a common safety veto.
+    // A manual reset only inhibits optional idle sleep, never battery protection.
+    protectionStopInhibit = (flags & (RCC_RSR_IWDG1RSTF |
+        RCC_RSR_WWDG1RSTF | RCC_RSR_LPWRRSTF)) != 0u || stopFault;
+    resetInhibit = protectionStopInhibit ||
+        (!cold && !software && (flags & (RCC_RSR_PINRSTF | RCC_RSR_CPURSTF)) != 0u);
     forceRunPowerPolicy();
 }
 
@@ -159,22 +163,18 @@ extern "C" void SystemSleep_SuppressHeldInputs(void)
 }
 extern "C" bool SystemSleep_ProtectionStop(void)
 {
-#if HBOX_AUTO_SLEEP_ENABLED == 1
-    const uint32_t reason=(!policy.enabled()?2u:0u)|(resetInhibit?4u:0u)|
-        (rawKeys()!=0u?8u:0u)|(__get_PRIMASK()!=0u?16u:0u)|
+    // Protection owns stopped loads. Ordinary Auto Sleep preferences, held
+    // startup keys and UI/transport sleep failures must not keep the CPU awake.
+    const uint32_t reason=(protectionStopInhibit?4u:0u)|(__get_PRIMASK()!=0u?16u:0u)|
         (POWER_MANAGER.isPolling()?32u:0u)|
         ((CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk)!=0u?64u:0u);
     if(reason && BatteryTest_Sleep) BatteryTest_Sleep(0,1,0,reason);
-    if (!policy.enabled() || resetInhibit || rawKeys() != 0u ||
-        __get_PRIMASK() != 0u || POWER_MANAGER.isPolling() ||
-        (CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk) != 0u) return false;
+    if (reason) return false;
     uint32_t pins = 0u;
-    if (SystemStop_Enter(1000u, &pins)) return true;
+    if (SystemStop_EnterProtection(1000u, &pins)) return true;
     if(BatteryTest_Sleep) BatteryTest_Sleep(0,1,0,256);
-    policy.inhibit(); // no repeated STOP attempts after a preparation failure
-#else
-    if(BatteryTest_Sleep) BatteryTest_Sleep(0,1,0,1);
-#endif
+    protectionStopInhibit = true;
+    policy.inhibit(); // no repeated STOP attempts after an actual backend failure
     return false;
 }
 extern "C" uint32_t SystemSleep_FilterInput(uint32_t mask)
@@ -289,7 +289,7 @@ extern "C" void SystemSleep_Service(bool inputMode, bool resetPending)
     if ((policy.state() == State::Preparing || policy.state() == State::Sleeping) &&
         (pressed != 0u || keys != 0u || stopWakeKeys != 0u || enteringActivity || !BOARD_MODE.isStable())) {
         beginRestore(now, keys | pressed | rawKeys() | stopWakeKeys);
-        g_sleepDiagnostics.wakePins = keys | pressed | rawKeys() | stopWakeKeys;
+        XORA_DIAGNOSTIC_CALL(g_sleepDiagnostics.wakePins = keys | pressed | rawKeys() | stopWakeKeys);
         stopWakeKeys = 0u;
     }
 
@@ -355,6 +355,7 @@ extern "C" void SystemSleep_Idle(void)
             ? (elapsed < 10u ? 10u - elapsed : 1u) : 100u);
     uint32_t pins = 0u;
     if (!SystemStop_Enter(interval, &pins)) {
+        protectionStopInhibit = true;
         if(BatteryTest_Sleep) BatteryTest_Sleep(0,0,0,256);
         fail(HAL_GetTick(), "STOP preparation failed"); return;
     }

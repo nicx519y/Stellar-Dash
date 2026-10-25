@@ -67,11 +67,13 @@ export function parseApplicationHidTelemetryFrame(report: Uint8Array, timestampM
     const ch585Role = ch585RoleFromCode(view.getUint8(23));
     const version = `${view.getUint8(24)}.${view.getUint8(25)}.${view.getUint8(26)}`;
     const flags = view.getUint8(27);
+    const metadata = (flags & 0x80) !== 0;
+    const age = metadata ? view.getUint32(28,true) >>> 2 : 0;
 
     return [
       {
         kind: "power_status",
-        timestampMs,
+        timestampMs: timestampMs-age,
         h1Mv: cellMv,
         h2Mv: 0,
         batMv: cellMv,
@@ -79,7 +81,7 @@ export function parseApplicationHidTelemetryFrame(report: Uint8Array, timestampM
         socPercent: Math.max(0, Math.min(100, socPermille / 10)),
         activeBattery: "H1",
         chargeState,
-        valid: (flags & 0x01) !== 0,
+        valid: (flags & 0x01) !== 0 && age<=3000,
         lowBattery: (flags & 0x02) !== 0,
         fastCharging: (flags & 0x04) !== 0,
         vbusPresent: (flags & 0x08) !== 0,
@@ -91,6 +93,9 @@ export function parseApplicationHidTelemetryFrame(report: Uint8Array, timestampM
         ch585Role,
         ch585Version: version,
         formatVersion: 2,
+        powerOrigin: "firmware",
+        socEstimated: (flags & 0x40) !== 0,
+        ...(metadata ? {sampleUptimeMs: (view.getUint32(8, true)-age)>>>0, socSource: view.getUint32(28, true)&3} : {}),
       },
       {
         kind: "packet",

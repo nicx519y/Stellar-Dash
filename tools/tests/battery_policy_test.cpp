@@ -24,21 +24,44 @@ int main() {
     assert(p.level()==BatteryLevel::Low);
     p.sample(41000,true,3550,150,false); assert(p.level()==BatteryLevel::Normal);
     // Dense IRQ samples never substitute for elapsed milliseconds.
-    for (unsigned t=42000;t<45000;++t) p.sample(t,true,3200,80,true);
+    for (unsigned t=42000;t<45000;++t) p.sample(t,true,3200,80,false);
     assert(p.level()!=BatteryLevel::Critical);
-    p.sample(45000,true,3200,80,true);
-    assert(p.level()==BatteryLevel::Critical); // also while plugged in
+    p.sample(45000,true,3200,80,false);
+    assert(p.level()==BatteryLevel::Critical);
     for (unsigned t=46000;t<=80000;t+=1000) p.sample(t,true,3800,500,false);
     assert(p.level()==BatteryLevel::Critical); // rebound cannot unlock
     assert(!p.acknowledgeRecovery());
-    for(unsigned t=81000;t<91000;t+=1000) p.sample(t,true,3550,100,true);
+    // Qualified power permits recovery on the first sample, even below 3.2 V.
+    p.sample(81000,true,3100,40,true);
+    assert(p.level()==BatteryLevel::RecoveryReady);
+    p.sample(82000,false,3100,40,true); assert(p.level()==BatteryLevel::Critical);
+    assert(!p.acknowledgeRecovery());
+    p.sample(83000,true,3100,40,false); // cable lost / charging blocked
     assert(p.level()==BatteryLevel::Critical);
-    p.sample(91000,true,3550,100,true); assert(p.level()==BatteryLevel::RecoveryReady);
-    p.sample(92000,false,3550,100,true); assert(p.level()==BatteryLevel::Critical);
-    for(unsigned t=93000;t<=103000;t+=1000) p.sample(t,true,3550,100,true);
+    p.sample(84000,true,3100,40,true);
     assert(p.acknowledgeRecovery() && p.level()!=BatteryLevel::Critical);
+    for(unsigned t=85000;t<=103000;t+=1000) {
+        p.sample(t,true,3100,40,true);
+        assert(p.level()!=BatteryLevel::Critical); // no protection loop on external power
+    }
+    assert(p.level()==BatteryLevel::Low); // the warning still confirms normally
     for(unsigned t=104000;t<=107000;t+=1000) p.sample(t,true,3100,40,false);
     assert(p.level()==BatteryLevel::Critical); // unplugged and depleted again after recovery
+    // A cold start on qualified power must not enter protection either.
+    BatteryPolicy poweredStart;
+    for(unsigned t=0;t<=12000;t+=1000) {
+        poweredStart.sample(t,true,3000,20,true);
+        assert(poweredStart.level()!=BatteryLevel::Critical);
+    }
+    // A short dropout does not accumulate with the next undervoltage interval.
+    poweredStart.sample(13000,true,3000,20,false);
+    poweredStart.sample(15000,true,3000,20,false);
+    poweredStart.sample(16000,true,3000,20,true);
+    poweredStart.sample(17000,true,3000,20,false);
+    poweredStart.sample(19000,true,3000,20,false);
+    assert(poweredStart.level()==BatteryLevel::Low);
+    poweredStart.sample(20000,true,3000,20,false);
+    assert(poweredStart.level()==BatteryLevel::Critical);
     BatteryPolicy jitter;
     for(unsigned t=0;t<=12000;t+=1000) {
         jitter.sample(t,true,(t/1000)%2 ? 3201 : 3200,200,false);
@@ -48,7 +71,7 @@ int main() {
     for(unsigned t=0;t<=10000;t+=1000) voltageOnly.sample(t,true,3450,101,false);
     assert(voltageOnly.level()==BatteryLevel::Normal); // voltage entry is strictly below
     for(unsigned t=11000;t<=21000;t+=1000) voltageOnly.sample(t,true,3449,101,false);
-    assert(voltageOnly.level()==BatteryLevel::Low);
+    assert(voltageOnly.level()==BatteryLevel::Normal); // calibrated SOC controls warning
     // Gap/invalid data restart confirmation, including around tick wrap.
     p = {};
     p.sample(0,true,3100,40,false);

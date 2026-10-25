@@ -14,13 +14,14 @@ import { showToast } from './ui/toaster';
 import { SettingDescription } from './ui/setting-description';
 import { ScreenPreviewFrame } from './screen-standby-preview';
 import { galleryImageLimits } from '@/lib/gallery-image-limits';
+import { createGalleryGifPoster } from '@/lib/gallery-gif-poster';
 import { processGalleryImage } from '@/lib/gallery-image-processor';
 import {
   deleteMyGalleryImages,
   fetchMyGallery,
   fetchSystemGallery,
   GalleryImage,
-  galleryPreviewUrl,
+  galleryPosterUrl,
   uploadMyGalleryImage,
 } from '@/lib/image-gallery';
 import { sha256Hex } from '@/lib/uimg-v3';
@@ -53,6 +54,7 @@ type UploadState = {
   id: string;
   file: File;
   previewUrl: string;
+  posterUrl: string;
   status: 'queued' | 'processing' | 'uploading' | 'error';
   progress: number;
   error?: string;
@@ -134,23 +136,38 @@ function fingerprint(value: { width: number; height: number; size: number; frame
   return [value.width, value.height, value.size, value.frameCount, value.fps, value.crc32 ?? 'legacy'].join(':');
 }
 
-function AuthorizedPreview({ image, fetchAuthorized }: { image: GalleryImage; fetchAuthorized: PropsWithFetch }) {
-  const previewUrl = galleryPreviewUrl(image);
-  const [url, setUrl] = useState('');
+function usePreviewUrl(sourceUrl: string, fetchResource: PropsWithFetch, enabled: boolean) {
+  const [loaded, setLoaded] = useState({ sourceUrl: '', url: '' });
   useEffect(() => {
-    if (image.scope === 'user') return;
-    setUrl('');
+    if (!enabled) return;
     let active = true;
     let objectUrl = '';
-    fetchAuthorized(previewUrl).then(async response => {
+    void fetchResource(sourceUrl, { cache: 'force-cache', credentials: 'same-origin' }).then(async response => {
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const nextUrl = URL.createObjectURL(await response.blob());
-      if (active) { objectUrl = nextUrl; setUrl(nextUrl); }
-      else URL.revokeObjectURL(nextUrl);
-    }).catch(() => { if (active) setUrl(''); });
+      const source = await response.blob();
+      if (!active) return;
+      objectUrl = URL.createObjectURL(source);
+      setLoaded({ sourceUrl, url: objectUrl });
+    }).catch(() => { if (active) setLoaded({ sourceUrl, url: '' }); });
     return () => { active = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [fetchAuthorized, previewUrl, image.scope]);
-  const displayedUrl = image.scope === 'user' ? previewUrl : url;
+  }, [fetchResource, sourceUrl, enabled]);
+  return enabled && loaded.sourceUrl === sourceUrl ? loaded.url : '';
+}
+
+function AuthorizedPreview({ image, fetchAuthorized, playing }: { image: GalleryImage; fetchAuthorized: PropsWithFetch; playing: boolean }) {
+  const animated = image.sourceMime.toLowerCase() === 'image/gif';
+  const previewUrl = galleryPosterUrl(image);
+  const [requestedAnimation, setRequestedAnimation] = useState('');
+  useEffect(() => {
+    if (animated && playing) setRequestedAnimation(image.sourceUrl);
+  }, [animated, playing, image.sourceUrl]);
+  const poster = usePreviewUrl(previewUrl, fetchAuthorized, image.scope === 'system');
+  // Both galleries load the original GIF only after a mouse hover. Retain the
+  // downloaded blob for repeat hovers and keep the poster visible while loading.
+  const animation = usePreviewUrl(image.sourceUrl, image.scope === 'system' ? fetchAuthorized : fetch,
+    animated && requestedAnimation === image.sourceUrl);
+  const posterUrl = image.scope === 'user' ? previewUrl : poster;
+  const displayedUrl = animated && playing && animation ? animation : posterUrl;
   return displayedUrl
     ? <Image src={displayedUrl} alt={image.title} width="100%" height="100%" objectFit="contain" draggable={false} />
     : <Flex width="100%" height="100%" align="center" justify="center"><Spinner size="sm" /></Flex>;
@@ -177,15 +194,18 @@ function GalleryTile({
   image, selectable, isCurrent, isInstalling, isSelected, installActive, progress,
   fetchAuthorized, onBeginPress, onEndPress,
 }: GalleryTileProps) {
+  const [hovered, setHovered] = useState(false);
   return <Box position="relative" borderWidth="2px" borderColor={isCurrent ? 'green.400' : isSelected ? 'blue.400' : 'gray.700'} borderRadius="md" overflow="hidden" height="118px"
     userSelect="none" touchAction="none" cursor={!isCurrent && ((selectable && !isInstalling) || !installActive) ? 'pointer' : 'default'}
     aria-disabled={isCurrent || isInstalling}
+    onPointerEnter={event => { if (event.pointerType === 'mouse') setHovered(true); }}
+    onPointerLeave={() => setHovered(false)}
     onContextMenu={event => event.preventDefault()}
     onPointerDown={event => { if (isCurrent || isInstalling) return; event.currentTarget.setPointerCapture(event.pointerId); onBeginPress(image.id); }}
     onPointerUp={() => onEndPress(image.id, selectable)} onPointerCancel={() => onEndPress(image.id, selectable, true)}
     onKeyDown={event => { if (!isCurrent && !isInstalling && (event.key === ' ' || event.key === 'Enter') && !event.repeat) onBeginPress(image.id); }}
     onKeyUp={event => { if (event.key === ' ' || event.key === 'Enter') onEndPress(image.id, selectable); }} tabIndex={isCurrent || isInstalling ? -1 : 0}>
-    <AuthorizedPreview image={image} fetchAuthorized={fetchAuthorized} />
+    <AuthorizedPreview image={image} fetchAuthorized={fetchAuthorized} playing={hovered} />
     <Box position="absolute" insetX="0" bottom="0" bg="blackAlpha.700" px="2" py="1"><Text fontSize="xs" truncate>{image.title}</Text></Box>
     {isSelected && <Flex position="absolute" left="2" top="2" bg="blue.500" borderRadius="full" p="1"><LuCheck /></Flex>}
     {isCurrent && <Flex position="absolute" right="2" top="2" bg="green.500" borderRadius="full" p="1"><LuCheck /></Flex>}
@@ -201,6 +221,49 @@ function GalleryTile({
         }}
       />
     </Flex>}
+  </Box>;
+}
+
+function UploadTile({ upload, onRetry, failedLabel, retryLabel }: {
+  upload: UploadState;
+  onRetry(upload: UploadState): void;
+  failedLabel: string;
+  retryLabel: string;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const failed = upload.status === 'error';
+  const progress = upload.status === 'uploading' ? upload.progress : 0;
+  const retry = () => { if (failed) onRetry(upload); };
+  return <Box
+    position="relative"
+    borderWidth="2px"
+    borderColor={failed ? 'red.500' : 'gray.700'}
+    borderRadius="md"
+    overflow="hidden"
+    height="118px"
+    cursor={failed ? 'pointer' : 'default'}
+    role={failed ? 'button' : undefined}
+    tabIndex={failed ? 0 : undefined}
+    onClick={retry}
+    onPointerEnter={event => { if (event.pointerType === 'mouse') setHovered(true); }}
+    onPointerLeave={() => setHovered(false)}
+    onKeyDown={event => { if (failed && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); retry(); } }}
+  >
+    {(hovered ? upload.previewUrl : upload.posterUrl) && <Image src={hovered ? upload.previewUrl : upload.posterUrl} alt={upload.file.name} width="100%" height="100%" objectFit="contain" draggable={false} />}
+    {!failed && <Box
+      position="absolute"
+      insetX="0"
+      top={`${progress}%`}
+      bottom="0"
+      bg="blackAlpha.700"
+      transition="top 120ms linear"
+      pointerEvents="none"
+    />}
+    {!failed && upload.status !== 'uploading' && <Flex position="absolute" inset="0" align="center" justify="center"><Spinner size="sm" /></Flex>}
+    {failed && <Flex position="absolute" inset="0" align="center" justify="center" bg="blackAlpha.600">
+      <Text fontSize="sm" fontWeight="semibold">{hovered ? retryLabel : failedLabel}</Text>
+    </Flex>}
+    <Box position="absolute" insetX="0" bottom="0" bg="blackAlpha.700" px="2" py="1"><Text fontSize="xs" truncate>{upload.file.name}</Text></Box>
   </Box>;
 }
 
@@ -249,7 +312,6 @@ export function BackgroundImageGallery({ disabled, config, onInstalled, onAvaila
   const [mine, setMine] = useState<{ limit: number; count: number; items: GalleryImage[] }>({ limit: 10, count: 0, items: [] });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [uploads, setUploads] = useState<UploadState[]>([]);
-  const [retryHoverId, setRetryHoverId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [currentPreview, setCurrentPreview] = useState<string>('');
   const [currentFingerprint, setCurrentFingerprint] = useState<string>('');
@@ -606,6 +668,9 @@ export function BackgroundImageGallery({ disabled, config, onInstalled, onAvaila
   const uploadOne = async (item: UploadState) => {
     try {
       setUpload(item.id, { status: 'processing', progress: 0, error: undefined });
+      if (item.file.type === 'image/gif' && !item.posterUrl) {
+        setUpload(item.id, { posterUrl: await createGalleryGifPoster(item.file) });
+      }
       const limits = galleryImageLimits(await getDeviceImageCatalog());
       const processed = await processGalleryImage(item.file, limits);
       setUpload(item.id, { status: 'uploading', progress: 0 });
@@ -635,7 +700,8 @@ export function BackgroundImageGallery({ disabled, config, onInstalled, onAvaila
     const items = valid.map(file => {
       const previewUrl = URL.createObjectURL(file);
       uploadPreviewUrls.current.add(previewUrl);
-      return { id: crypto.randomUUID(), file, previewUrl, status: 'queued' as const, progress: 0 };
+      const posterUrl = file.type === 'image/gif' ? '' : previewUrl;
+      return { id: crypto.randomUUID(), file, previewUrl, posterUrl, status: 'queued' as const, progress: 0 };
     });
     setUploads(current => [...items, ...current]);
     await mapWithConcurrency(items, 4, uploadOne);
@@ -668,44 +734,6 @@ export function BackgroundImageGallery({ disabled, config, onInstalled, onAvaila
       onBeginPress={beginPress}
       onEndPress={endPress}
     />;
-  };
-
-  const UploadTile = ({ upload }: { upload: UploadState }) => {
-    const failed = upload.status === 'error';
-    const progress = upload.status === 'uploading' ? upload.progress : 0;
-    const retrying = retryHoverId === upload.id;
-    const retry = () => { if (failed) void uploadOne(upload); };
-    return <Box
-      position="relative"
-      borderWidth="2px"
-      borderColor={failed ? 'red.500' : 'gray.700'}
-      borderRadius="md"
-      overflow="hidden"
-      height="118px"
-      cursor={failed ? 'pointer' : 'default'}
-      role={failed ? 'button' : undefined}
-      tabIndex={failed ? 0 : undefined}
-      onClick={retry}
-      onMouseEnter={() => { if (failed) setRetryHoverId(upload.id); }}
-      onMouseLeave={() => setRetryHoverId(current => current === upload.id ? null : current)}
-      onKeyDown={event => { if (failed && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); retry(); } }}
-    >
-      <Image src={upload.previewUrl} alt={upload.file.name} width="100%" height="100%" objectFit="contain" draggable={false} />
-      {!failed && <Box
-        position="absolute"
-        insetX="0"
-        top={`${progress}%`}
-        bottom="0"
-        bg="blackAlpha.700"
-        transition="top 120ms linear"
-        pointerEvents="none"
-      />}
-      {!failed && upload.status !== 'uploading' && <Flex position="absolute" inset="0" align="center" justify="center"><Spinner size="sm" /></Flex>}
-      {failed && <Flex position="absolute" inset="0" align="center" justify="center" bg="blackAlpha.600">
-        <Text fontSize="sm" fontWeight="semibold">{retrying ? copy.retry : copy.failed}</Text>
-      </Flex>}
-      <Box position="absolute" insetX="0" bottom="0" bg="blackAlpha.700" px="2" py="1"><Text fontSize="xs" truncate>{upload.file.name}</Text></Box>
-    </Box>;
   };
 
   const activeUploadCount = uploads.filter(upload => upload.status !== 'error').length;
@@ -799,7 +827,7 @@ export function BackgroundImageGallery({ disabled, config, onInstalled, onAvaila
             <Tabs.Content value="system" pt="4" pb="0" display={galleryTab === 'system' ? 'flex' : 'none'} flexDirection="column" flex="1" minHeight="0" overflow="hidden">
               {galleryToolbar(false)}
               <GalleryImageList>
-                {loading ? <Spinner /> : <Grid templateColumns="repeat(auto-fill,minmax(180px,1fr))" gap="3">{systemImages.map(image => renderTile(image, false))}</Grid>}
+                {loading && !systemImages.length ? <Spinner /> : <Grid templateColumns="repeat(auto-fill,minmax(180px,1fr))" gap="3">{systemImages.map(image => renderTile(image, false))}</Grid>}
                 {systemCursor && <Button mt="4" size="sm" onClick={() => void loadSystem(true)}>{copy.loadMore}</Button>}
               </GalleryImageList>
             </Tabs.Content>
@@ -810,7 +838,7 @@ export function BackgroundImageGallery({ disabled, config, onInstalled, onAvaila
                   <input ref={fileInput} hidden type="file" multiple accept="image/png,image/jpeg,image/gif" onChange={event => { const files = [...(event.target.files || [])]; event.target.value = ''; void addFiles(files); }} />
                   <Grid templateColumns="repeat(auto-fill,minmax(180px,1fr))" gap="3">
                     <AddTile />
-                    {uploads.map(upload => <UploadTile key={upload.id} upload={upload} />)}
+                    {uploads.map(upload => <UploadTile key={upload.id} upload={upload} onRetry={uploadOne} failedLabel={copy.failed} retryLabel={copy.retry} />)}
                     {mine.items.map(image => renderTile(image, true))}
                   </Grid>
                 </>}

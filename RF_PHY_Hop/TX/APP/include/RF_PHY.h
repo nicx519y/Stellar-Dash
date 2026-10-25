@@ -34,6 +34,7 @@ typedef enum {
 extern void RF_Init(void);
 extern void RF_TxMainLoopProcess(void);
 extern bool RF_SPI_WriteTrace(uint8_t cmd, const uint8_t *payload, uint8_t len);
+extern bool RF_SPI_WritePower(const uint8_t *payload, uint8_t len);
 extern bool RF_SPI_FastWriteInput(const uint8_t *payload, uint8_t len);
 extern bool RF_SetReportRateHz(uint16_t hz);
 extern bool RF_PrepareSleep(void);

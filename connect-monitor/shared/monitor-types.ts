@@ -262,6 +262,11 @@ export interface PowerStatusEvent extends EventOrigin {
   ch585Role?: Ch585Role;
   ch585Version?: string;
   formatVersion?: 1 | 2;
+  socEstimated?: boolean;
+  socSource?: number;
+  powerOrigin?: "firmware" | "voltage";
+  sampleUptimeMs?: number;
+  sampleSequence?: number;
 }
 
 export interface ErrorEvent extends EventOrigin {
@@ -319,6 +324,7 @@ export interface DebugConfigStatus {
   lastSeq: number;
   message?: string;
   telemetryLeaseSupported?: boolean;
+  diagnosticsAllowed?: boolean;
 }
 
 export interface HitboxBounds {

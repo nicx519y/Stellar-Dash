@@ -1,8 +1,19 @@
+#define XORA_FAST_DEBUG_IMPLEMENTATION
+#undef rff_log
+#undef rff_log_commit
+#undef rff_debug_start
+#undef rff_debug_stop
+#undef rff_debug_input
+#undef rff_maintenance
+#undef rff_debug_gap
+#undef rff_fault
+#undef rff_log_peek
 #include "CONFIG.h"
 #include "rf_fast_debug.h"
 #include <string.h>
 rff_debug_t g_rff_debug;
 void rff_log(uint8_t kind,uint8_t channel,uint32_t at,uint32_t planned,uint32_t value,uint32_t generation){
+    if(!XORA_DIAGNOSTICS_ENABLED)return;
     uint32_t lock;SYS_DisableAllIrq(&lock);uint8_t next=(g_rff_debug.head+1u)%RFF_LOG_COUNT;
     if(next==g_rff_debug.tail){g_rff_debug.overflow++;SYS_RecoverIrq(lock);return;}
     rff_event_t *e=&g_rff_debug.events[g_rff_debug.head];

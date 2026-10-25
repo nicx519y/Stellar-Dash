@@ -10,6 +10,9 @@ extern "C" {
 // Returns false on a recoverable preparation failure; clock recovery failure
 // requests an ordinary reset with a one-boot RAM inhibitor.
 bool SystemStop_Enter(uint32_t intervalMs, uint32_t* wakePins);
+// Protection only: caller has stopped loads and completed the notice frame.
+// Already-held keys do not veto STOP; new falling edges still wake the CPU.
+bool SystemStop_EnterProtection(uint32_t intervalMs, uint32_t* wakePins);
 bool SystemStop_ConsumeRecoveryFault(bool coldReset, bool softwareReset);
 bool SystemStop_HandleKeyIRQ(void);
 #ifdef __cplusplus

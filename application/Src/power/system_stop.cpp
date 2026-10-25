@@ -1,6 +1,7 @@
 #include "sleep_diagnostics.hpp"
 #include "system_stop.hpp"
 #include "stop_timer_timing.hpp"
+#include "stop_wake_gate.hpp"
 #include "board_cfg.h"
 #include "power_i2c_bus.h"
 #include "stm32h7xx_hal.h"
@@ -189,7 +190,7 @@ extern "C" void LPTIM2_IRQHandler(void)
 }
 
 #include "battery_test_log.h"
-extern "C" bool SystemStop_Enter(uint32_t intervalMs, uint32_t* wakePins)
+static __attribute__((noinline)) bool enterStop(uint32_t intervalMs, uint32_t* wakePins, bool protection)
 {
     const uint32_t batteryStarted=HAL_GetTick();
     bool batteryWait=false;
@@ -210,6 +211,7 @@ extern "C" bool SystemStop_Enter(uint32_t intervalMs, uint32_t* wakePins)
     const uint32_t i2cCr1 = i2cClocked ? I2C1->CR1 : 0u;
     SCB_CleanDCache();
     __disable_irq();
+    const StopWakeGate wakeGate(heldPins(), protection);
     // ES0392 2.19.2: disable I2C when STOP wakeup by I2C is not used.
     if (i2cClocked) CLEAR_BIT(I2C1->CR1, I2C_CR1_PE);
     const auto exti = armKeys();
@@ -246,16 +248,16 @@ extern "C" bool SystemStop_Enter(uint32_t intervalMs, uint32_t* wakePins)
         // PRIMASK does not prevent an enabled NVIC interrupt waking WFI.
         // The compare may have fired before IRQ masking. Do not sleep until
         // the next 16-bit wrap if its ISR already consumed that notification.
-        if (!heldPins() && !(EXTI->PR1 & allPins) && capturedPins == 0u &&
-            counter() < LPTIM2->CMP) {
-            ++g_sleepDiagnostics.stopEntries;
-            g_sleepDiagnostics.stage = static_cast<uint32_t>(SleepStage::StopEnter);
+        if (wakeGate.mayWait(heldPins(), EXTI->PR1 & allPins, capturedPins,
+                             counter() < LPTIM2->CMP)) {
+            XORA_DIAGNOSTIC_CALL(++g_sleepDiagnostics.stopEntries;
+                g_sleepDiagnostics.stage = static_cast<uint32_t>(SleepStage::StopEnter));
             __DSB();
             batteryWait=true;
             __WFI();
             __ISB();
-            ++g_sleepDiagnostics.stopReturns;
-            g_sleepDiagnostics.stage = static_cast<uint32_t>(SleepStage::StopReturn);
+            XORA_DIAGNOSTIC_CALL(++g_sleepDiagnostics.stopReturns;
+                g_sleepDiagnostics.stage = static_cast<uint32_t>(SleepStage::StopReturn));
         }
     }
     CLEAR_BIT(SCB->SCR, SCB_SCR_SLEEPDEEP_Msk | SCB_SCR_SLEEPONEXIT_Msk);
@@ -302,4 +304,14 @@ extern "C" bool SystemStop_Enter(uint32_t intervalMs, uint32_t* wakePins)
     __enable_irq();
     if(BatteryTest_Sleep) BatteryTest_Sleep(HAL_GetTick()-batteryStarted,-1,batteryWait,0);
     return ready;
+}
+
+extern "C" bool SystemStop_Enter(uint32_t intervalMs, uint32_t* wakePins)
+{
+    return enterStop(intervalMs, wakePins, false);
+}
+
+extern "C" bool SystemStop_EnterProtection(uint32_t intervalMs, uint32_t* wakePins)
+{
+    return enterStop(intervalMs, wakePins, true);
 }

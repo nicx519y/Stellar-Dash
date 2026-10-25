@@ -1,6 +1,7 @@
 import { batterySessions, decodeBatteryRecord } from './battery-test-logs';
 import { chargeSessions } from './charge-test-logs';
-export type LogSource = 'stm32' | 'tx' | 'battery';
+import { gameLinkIncidents } from './game-link-logs';
+export type LogSource = 'stm32' | 'tx' | 'rx' | 'battery';
 export type LogStatus = 'ok' | 'unsupported' | 'unavailable' | 'storage_error';
 export interface FaultRecord {
   sequence: number;
@@ -117,6 +118,7 @@ export function logExport(pages: FaultLogPage[], filters: { source: string; cate
     timeBasis: 'Per-device boot number and uptime; export time is not event time.',
     volatileWarning: 'Pending records may be lost on power removal.',
     sources: pages,
+    connectionIncidents: gameLinkIncidents(pages),
     batteryTests: pages.filter(p => p.source === 'battery').flatMap(p => batterySessions(p.items, p)),
     chargeTests: pages.filter(p => p.source === 'battery').flatMap(p => chargeSessions(p.items, p)),
   };
@@ -132,6 +134,7 @@ export function logExportText(value: ReturnType<typeof logExport>): string {
     }
   }
   for (const session of value.batteryTests) {
+    // Battery sessions retain their independent clock and interpretation.
     lines.push(`\nBattery session=${session.id} recordsIncomplete=${session.incomplete}`);
     for (const cycle of session.cycles) lines.push(JSON.stringify(cycle));
   }
@@ -139,5 +142,6 @@ export function logExportText(value: ReturnType<typeof logExport>): string {
     lines.push(`\nCharge session=${session.id} recordsIncomplete=${session.incomplete} inputMs=${session.inputMs} chargingMs=${session.chargingMs}`);
     for (const cycle of session.cycles) lines.push(JSON.stringify(cycle));
   }
+  for (const incident of value.connectionIncidents) lines.push(`\nConnection ${JSON.stringify(incident)}`);
   return lines.join('\n');
 }

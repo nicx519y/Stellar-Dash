@@ -11,6 +11,8 @@
 #include <cstring>
 
 namespace {
+static_assert(BatterySocEstimator::fullConfirmMs == CT_FULL_CONFIRM_MS,
+              "SOC and charge test must share the full confirmation interval");
 // Explicitly initialized in Init: D3 NOLOAD is not part of startup BSS.
 BatteryTestRecorder recorder __attribute__((section(".BDMA_Section.battery"), aligned(32)));
 bool initialized=false, requested=false, endRequested=false, owned=false, failed=false;

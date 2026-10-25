@@ -1,3 +1,4 @@
+#define XORA_MONITOR_IMPLEMENTATION
 #include "monitor_telemetry.hpp"
 
 #include <string.h>
@@ -98,7 +99,7 @@ void MonitorTelemetry_SetTargetRateHz(uint16_t targetRateHz) {
     g_snapshot.lastUpdateUs = MICROS_TIMER.micros();
 }
 
-uint32_t MonitorTelemetry_NextSequence() {
+uint32_t InputReport_NextSequence() {
     g_sequence++;
     return g_sequence;
 }
@@ -280,7 +281,7 @@ bool MonitorTelemetry_FillPowerFrameV1(MonitorPowerFrameV1* out) {
     return true;
 }
 
-bool MonitorTelemetry_FillPowerFrameV2(MonitorPowerFrameV2* out) {
+__attribute__((optimize("Os"))) bool MonitorTelemetry_FillPowerFrameV2(MonitorPowerFrameV2* out) {
     if (out == nullptr) {
         return false;
     }
@@ -323,7 +324,10 @@ bool MonitorTelemetry_FillPowerFrameV2(MonitorPowerFrameV2* out) {
     out->ch585VersionMinor = g_ch585VersionMinor;
     out->ch585VersionPatch = g_ch585VersionPatch;
     out->flags = flags;
-    out->reserved = 0u;
+    out->flags |= power.soc_estimated ? 0x40u : 0u;
+    out->flags |= 0x80u; // Explicit estimator metadata capability.
+    const uint32_t age = out->timestampMs - power.sampled_at_ms;
+    out->reserved = ((age > 0x3fffffffu ? 0x3fffffffu : age) << 2) | uint32_t(power.soc_source);
     return true;
 }
 

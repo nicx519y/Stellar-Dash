@@ -3,12 +3,14 @@
 #include <string.h>
 
 #include "usb_auth.h"
+#include "usb_device.h"
 #include "usb_webhid_fast.h"
 #include "rf_binding_protocol.h"
 #include "ch585_iap_protocol.h"
 #include "release_install_protocol.h"
 #include "tx_image_bulk.h"
 #include "fault_log_api.h"
+#include "game_log_window.h"
 
 static uint8_t s_connected;
 static uint8_t s_last_fault;
@@ -92,6 +94,20 @@ bool usb_management_control_handle(const uint8_t *request_bytes,
     {
         switch((usb_board_control_opcode_t)request.header.opcode)
         {
+        case USB_BOARD_CONTROL_DIAGNOSTICS:
+            if(request.header.data_length > 1u || (request.header.data_length && !XORA_POLICY_WIRE_VALID(request.data[0]))) status=USB_BOARD_STATUS_BAD_LENGTH;
+            else {
+                if(request.header.data_length) XoraDiagnostics_SetEnabled(request.data[0] & 3u);
+                response.data[0]=XORA_DIAGNOSTICS_VERSION;
+                response.data[1]=XORA_POLICY_FLAGS;
+                response.header.data_length=2u;
+            }
+            break;
+        case USB_BOARD_CONTROL_INPUT_EXPECTED:
+            if(s_binding_role!=USB_BOARD_ROLE_USB) status=USB_BOARD_STATUS_BAD_ROLE;
+            else if(request.header.data_length!=1u || request.data[0]>1u) status=USB_BOARD_STATUS_BAD_LENGTH;
+            else usb_device_game_expect(request.data[0]!=0);
+            break;
         case USB_BOARD_CONTROL_FAULT_LOG:
             if(s_binding_role!=USB_BOARD_ROLE_MAINTENANCE) status=USB_BOARD_STATUS_BAD_ROLE;
             else {
@@ -169,6 +185,7 @@ bool usb_management_control_handle(const uint8_t *request_bytes,
             if(status == USB_BOARD_STATUS_OK)
             {
                 usb_management_control_hw_disconnect();
+                (void)game_log_save_quiesced();
                 s_connected = 0u;
             }
             break;

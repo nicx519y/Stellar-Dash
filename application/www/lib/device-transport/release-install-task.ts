@@ -61,6 +61,7 @@ export function reconcileInstallTask(t: InstallTask, i: FirmwareInventory): Inst
 export function createInstallMonitor(options: {
   task: InstallTask; connected: () => boolean; reconnect: () => Promise<unknown>;
   waitReady?: () => Promise<void>; query: () => Promise<FirmwareInventory>; changed: (task: InstallTask, inventory?: FirmwareInventory) => void;
+  observed?: (inventory: FirmwareInventory) => void;
   now?: () => number; schedule?: (fn: () => void, delay: number) => ReturnType<typeof setTimeout>;
   cancel?: (id: ReturnType<typeof setTimeout>) => void;
 }) {
@@ -84,9 +85,16 @@ export function createInstallMonitor(options: {
         await options.waitReady?.();
         if (disposed || !options.connected() || (task.result === 'timeout' && !allowLateRead)) return;
         const i = await options.query(); if (disposed) return;
+        // Current device information is useful even when an old browser task
+        // belongs to another transaction. Never reconcile that task as success.
+        options.observed?.(i);
         const next = reconcileInstallTask(task, i);
         if (next) { task = next; options.changed(task, i); }
-      } catch { /* A disconnected TX is expected; deadline remains independent of request latency. */ }
+      } catch (error) {
+        // Automatic observation tolerates an offline TX. Explicit checks must
+        // report their failure instead of looking like a successful refresh.
+        if (manual && !disposed) throw error;
+      }
       finally {
         inFlight = null;
         if (!disposed && task.result === 'waiting') {

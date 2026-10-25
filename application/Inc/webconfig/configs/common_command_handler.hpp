@@ -141,6 +141,7 @@ public:
      * @brief 获取设备日志列表（从Flash读取，按时间倒序，限制条数）
      * DeviceCommand命令: get_device_logs_list
      */
+    DeviceCommandResponse handleDiagnosticsPolicy(const DeviceCommandRequest& request);
     DeviceCommandResponse handleGetDeviceLogsPage(const DeviceCommandRequest& request);
     DeviceCommandResponse handleClearDeviceLogs(const DeviceCommandRequest& request);
     DeviceCommandResponse handleGetDeviceLogsList(const DeviceCommandRequest& request);

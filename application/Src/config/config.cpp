@@ -220,7 +220,7 @@ static void sanitize_screen_recovery_entry(ScreenControlConfig& sc) {
 static void sanitize_screen_service_flags(ScreenControlConfig& sc) {
     /* Bit 0 belonged to the removed CH585 Flash/manual-ISP state.  Masking
      * it out also clears that stale latch from existing device configs. */
-    sc.serviceFlags &= SCREEN_SERVICE_CH585_IAP_CONFIRMED;
+    sc.serviceFlags &= (SCREEN_SERVICE_CH585_IAP_CONFIRMED | SCREEN_SERVICE_DIAGNOSTICS_ENABLED);
 }
 
 static void init_hardware_layout(HardwareLayoutConfig& hardware) {

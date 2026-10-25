@@ -1,5 +1,7 @@
 #pragma once
 #include "power_manager.hpp"
+#pragma GCC push_options
+#pragma GCC optimize("Os")
 
 // Display cadence only. Charger polling and battery protection keep their own clocks.
 class SleepChargePolicy {
@@ -52,3 +54,4 @@ private:
     Status status_=Status::Wait;
     bool visible_=false, dirty_=false;
 };
+#pragma GCC pop_options

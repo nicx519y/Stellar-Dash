@@ -33,7 +33,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
       </HStack>
       <Box as="nav" aria-label={zh ? '后台导航' : 'Administration navigation'} flex={{ lg: 1 }} minW="0"
         order={{ base: 3, lg: 2 }}>
-            <Flex gap="1" overflowX={{ base: 'auto', lg: 'visible' }}>
+            <Flex gap="1" overflowX="auto">
               {links.map(({ href, label, icon: Icon }) => {
                 const section = href.replace(/\/$/, '');
                 const current = pathname.replace(/\/$/, '');

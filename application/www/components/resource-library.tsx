@@ -1,4 +1,5 @@
 "use client";
+import { FeedbackSlot } from '@/components/ui/feedback-slot';
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Box,
@@ -284,7 +285,7 @@ export function ResourceLibrary({
       <Flex justify="space-between" align="center" gap="3" wrap="wrap">
         <Stack gap="1">
           {!lightingSelector && <Text fontWeight="bold">{title}</Text>}
-          {loading ? (
+          {loading && !inventory ? (
             <Skeleton height="20px" width="180px" />
           ) : (
             <Text color="fg.muted" fontSize="sm">
@@ -292,11 +293,11 @@ export function ResourceLibrary({
               {selected ? ` · v${selected.revision}` : ""}
             </Text>
           )}
-          {update && (
+          <Box h="20px">{update && (
             <Badge colorPalette="green">
               {zh ? "有新版本" : "Update available"}
             </Badge>
-          )}
+          )}</Box>
         </Stack>
         <Button
           size="sm"
@@ -309,16 +310,18 @@ export function ResourceLibrary({
           {zh ? "浏览资源" : "Browse resources"}
         </Button>
       </Flex>
+      <FeedbackSlot mt="2">
       {notice && (
-        <Text role="status" mt="2" color="green.500">
+        <Text role="status" color="green.500">
           {notice}
         </Text>
       )}
       {error && (
-        <Text role="alert" mt="2" fontSize="sm" color="red.500">
+        <Text role="alert" fontSize="sm" color="red.500">
           {error}
         </Text>
       )}
+      </FeedbackSlot>
       {axis && (
         <Text fontSize="sm" mt="2" color="fg.muted">
           {ctx.calibrationStatus.allCalibrated
@@ -401,7 +404,7 @@ export function ResourceLibrary({
                       : "Download a specific revision. Applying affects the current Profile."}
                 </Text>
                 <Stack gap="4">
-                  {loading ? (
+                  {loading && !inventory && !items.length ? (
                     <Skeleton height="220px" />
                   ) : (
                     (tab === "server"
@@ -504,16 +507,18 @@ export function ResourceLibrary({
                     })
                   )}
                 </Stack>
+                <FeedbackSlot mt="3">
                 {error && (
-                  <Text role="alert" mt="3" color="red.500">
+                  <Text role="alert" color="red.500">
                     {error}
                   </Text>
                 )}
                 {notice && (
-                  <Text role="status" mt="3">
+                  <Text role="status">
                     {notice}
                   </Text>
                 )}
+                </FeedbackSlot>
               </Drawer.Body>
               <Drawer.Footer>
                 <Button disabled={!!busy} onClick={() => setOpen(false)}>

@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include "charge_recovery_policy.hpp"
 #include "battery_policy.hpp"
+#include "power_load_policy.hpp"
+#include "battery_soc_estimator.hpp"
 
 extern "C" {
 #include "bq25895.h"
@@ -47,7 +49,7 @@ enum PowerFaultBits : uint16_t {
 };
 
 struct PowerSnapshot {
-    static constexpr uint16_t lowBatteryMv = 3450u;
+    static constexpr uint16_t lowBatterySocPermille = 100u;
     uint16_t cell_mv = 0;
     uint16_t soc_permille = 0;
     uint16_t vbus_mv = 0;
@@ -59,6 +61,8 @@ struct PowerSnapshot {
     PowerChargeBlock charge_block = PowerChargeBlock::Telemetry;
     BatteryLevel battery_level = BatteryLevel::Normal;
     bool battery_confirmation_pending = false;
+    BatterySocSource soc_source = BatterySocSource::ColdEstimate;
+    bool soc_estimated = true;
     uint32_t sampled_at_ms = 0;
     bool has_sample = false;
     bool thermal_regulation = false;
@@ -69,13 +73,18 @@ struct PowerSnapshot {
     bool input_current_regulation = false;
     bool input_voltage_regulation = false;
     bool valid = false;
+    uint8_t led_power_percent = 100;
+    uint8_t lcd_power_percent = 100;
+    bool supply_insufficient = false;
+    bool supply_recovery_locked = false;
+    uint16_t raw_soc_permille = 0; // MAX17048 diagnostic; never a business threshold.
 
     // Battery-only healthy standby can defer telemetry. Unknown, low battery,
     // external power and faults retain the normal one-second maintenance rate.
     uint32_t sleepMaintenanceIntervalMs() const {
         return valid && gauge_online && charger_online && fault_bits == 0u &&
                battery_level == BatteryLevel::Normal && !battery_confirmation_pending &&
-               !vbus_present && vbus_mv < 3900u && cell_mv > lowBatteryMv &&
+               !vbus_present && vbus_mv < 3900u && soc_permille > lowBatterySocPermille &&
                charge_state == PowerChargeState::Discharging ? 5000u : 1000u;
     }
 };
@@ -132,6 +141,8 @@ private:
     MAX17048_Handle gauge_{};
     ChargeRecoveryPolicy charge_recovery_{};
     BatteryPolicy battery_policy_{};
+    PowerLoadPolicy load_policy_{};
+    BatterySocEstimator soc_estimator_{};
     PowerSnapshot snapshot_{};
 
     enum class PollPhase : uint8_t {

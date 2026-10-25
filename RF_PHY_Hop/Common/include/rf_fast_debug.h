@@ -21,4 +21,16 @@ uint8_t rff_fault(uint8_t kind,uint8_t channel,uint32_t now);
 void rff_debug_input(uint8_t channel,uint32_t now,uint32_t generation);
 void rff_maintenance(uint32_t begin,uint32_t end);
 void rff_debug_gap(uint8_t phase,uint32_t gap,uint32_t now,uint32_t generation);
+#include "diagnostics_policy.h"
+#ifndef XORA_FAST_DEBUG_IMPLEMENTATION
+#define rff_log(...) XORA_DIAGNOSTIC_CALL(rff_log(__VA_ARGS__))
+#define rff_log_commit(...) XORA_DIAGNOSTIC_CALL(rff_log_commit(__VA_ARGS__))
+#define rff_debug_start(...) XORA_DIAGNOSTIC_CALL(rff_debug_start(__VA_ARGS__))
+#define rff_debug_stop(...) XORA_DIAGNOSTIC_CALL(rff_debug_stop(__VA_ARGS__))
+#define rff_debug_input(...) XORA_DIAGNOSTIC_CALL(rff_debug_input(__VA_ARGS__))
+#define rff_maintenance(...) XORA_DIAGNOSTIC_CALL(rff_maintenance(__VA_ARGS__))
+#define rff_debug_gap(...) XORA_DIAGNOSTIC_CALL(rff_debug_gap(__VA_ARGS__))
+#define rff_fault(...) (XORA_DIAGNOSTICS_ENABLED && rff_fault(__VA_ARGS__))
+#define rff_log_peek(...) (XORA_DIAGNOSTICS_ENABLED && rff_log_peek(__VA_ARGS__))
+#endif
 #endif

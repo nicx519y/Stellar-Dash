@@ -121,6 +121,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         get deviceClient() { return deviceClient; },
         get deviceState() { return deviceState; },
         get userRebooting() { return userRebooting; },
+        get setUserRebooting() { return setUserRebooting; },
         get firmwareUpdating() { return firmwareUpdating; },
         get deferredConfigDirty() { return deferredConfigDirty; },
         get deferredConfigSaving() { return deferredConfigSaving; },
@@ -181,7 +182,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const {
         setContextJsReady, connectDevice, reconnectDevice, disconnectDevice, getDeviceImageCatalog,
         readDeviceImage, uploadDeviceImage, deleteDeviceImage, rfBindingRequest, runRfBindingOperation,
-        sendDeviceRequest, getProfileMacros, fetchDeviceLogsList, fetchDeviceLogsPage, clearDeviceLogs, sendInitializationDeviceRequest,
+        sendDeviceRequest, diagnosticsPolicy, getProfileMacros, fetchDeviceLogsList, fetchDeviceLogsPage, clearDeviceLogs, sendInitializationDeviceRequest,
         getHitboxLayout, rebootSystem, exitWebConfig, sendPendingCommandImmediately, flushQueue,
         getDeviceTransportConfig, updateDeviceTransportConfig,
         indexMapToGameControllerButtonOrCombination,
@@ -444,6 +445,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         indexMapToGameControllerButtonOrCombination: indexMapToGameControllerButtonOrCombination,
         // 设备日志相关
         fetchDeviceLogsList: fetchDeviceLogsList,
+        diagnosticsPolicy: (enabled) => runConfigExclusive(() => diagnosticsPolicy(enabled)),
         fetchDeviceLogsPage: fetchDeviceLogsPage,
         clearDeviceLogs,
         getHitboxLayout: getHitboxLayout,

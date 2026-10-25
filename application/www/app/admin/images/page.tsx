@@ -1,5 +1,6 @@
 'use client';
 
+import { FeedbackSlot } from '@/components/ui/feedback-slot';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Box, Button, Center, Flex, HStack, Image, Input, SimpleGrid, Spinner, Text } from '@chakra-ui/react';
 import { LuGripVertical, LuTrash2, LuUpload } from 'react-icons/lu';
@@ -366,7 +367,7 @@ export default function AdminImagesPage() {
           </HStack>
         </Flex>
       </AdminCard>
-      {error && <Alert colorPalette="red" title={error} />}
+      <FeedbackSlot h="60px">{error && <Alert colorPalette="red" title={error} />}</FeedbackSlot>
       <Box ref={dropZone} position="relative" minH={`${listMinHeight}px`} data-testid="gallery-drop-zone"
         onDragEnter={onDragEnter} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
         {loading && !items.length ? <Center minH={`${listMinHeight}px`}><Spinner /></Center> : items.length === 0 ?

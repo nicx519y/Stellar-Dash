@@ -104,6 +104,8 @@ interface PersistedImage extends Omit<MockImage, 'data'> {
 }
 
 interface PersistedMockState {
+  diagnosticsEnabled?: boolean;
+  diagnosticsPolicy?: {loggingEnabled:boolean; monitoringEnabled:boolean};
   lightingResources?: MockResourceDevice['state'];
   rfBinding?: MockBindingState;
   version: typeof MOCK_STATE_VERSION;
@@ -284,6 +286,7 @@ export class MockDeviceTransport implements DeviceTransport {
   private defaultMappingId = DEFAULT_MAPPING.id;
   private sharedMappingInstalled = false;
   private draftMapping: Omit<SwitchMappingPayload, 'id'> | null = null;
+  private mockDiagnosticsPolicy = {loggingEnabled:false, monitoringEnabled:false};
   private mockCatalogRevision = 1;
   private serverMapping = clone(MOCK_SERVER_MAPPING);
   private serverCatalogId = 'mock-axis';
@@ -973,6 +976,21 @@ export class MockDeviceTransport implements DeviceTransport {
       }
       case 'get_hitbox_layout':
         return HITBOX_LAYOUT;
+      case 'set_diagnostics_policy':
+      case 'get_diagnostics_policy': {
+        const scenario = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('mockDiagnostics') : null;
+        const delay = typeof window !== 'undefined' ? Number(new URLSearchParams(window.location.search).get('mockDiagnosticsDelay')) : 0;
+        if (Number.isFinite(delay) && delay > 0) await new Promise(resolve => setTimeout(resolve, Math.min(delay, 3000)));
+        if (scenario === 'unsupported' || scenario === 'unavailable') throw new Error('Diagnostics policy unavailable');
+        if (command === 'set_diagnostics_policy') {
+          if (typeof params.loggingEnabled !== 'boolean' || typeof params.monitoringEnabled !== 'boolean') throw new Error('Both policy fields must be boolean');
+          if (scenario === 'save-failed') throw new Error('Diagnostics policy was not saved');
+          this.mockDiagnosticsPolicy = {loggingEnabled:params.loggingEnabled, monitoringEnabled:params.monitoringEnabled};
+          this.persistState();
+        }
+        return { version: 2, ...this.mockDiagnosticsPolicy, controller: 'applied',
+          tx: scenario === 'tx-pending' ? 'pending' : 'applied', rx: 'pending' };
+      }
       case 'get_device_logs_page': {
         const scenario = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('mockLogs') : null;
         if (scenario === 'full') await new Promise(resolve => setTimeout(resolve, 60));
@@ -980,7 +998,7 @@ export class MockDeviceTransport implements DeviceTransport {
           this.clearedLogSources.has(String(params.source)) ? 'empty' : (scenario ?? 'normal') as MockLogScenario);
       }
       case 'clear_device_logs': {
-        if (params.confirm !== true || !['stm32', 'tx', 'battery'].includes(String(params.source)))
+        if (params.confirm !== true || !['stm32', 'tx', 'rx', 'battery'].includes(String(params.source)))
           throw new Error('Explicit source and confirmation required');
         const scenario = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('mockLogs') : null;
         if (scenario === 'unsupported') throw new Error('Log clearing is unsupported; update firmware');
@@ -1834,6 +1852,7 @@ export class MockDeviceTransport implements DeviceTransport {
     return {
       lightingResources: clone(this.lightingResources.state),
       rfBinding: clone(this.rfBinding.state),
+      diagnosticsPolicy: this.mockDiagnosticsPolicy,
       version: MOCK_STATE_VERSION,
       globalConfig: clone(this.globalConfig),
       screenControl: clone(this.screenControl),
@@ -1852,6 +1871,7 @@ export class MockDeviceTransport implements DeviceTransport {
   }
 
   private applyState(state: PersistedMockState): void {
+    this.mockDiagnosticsPolicy = state.diagnosticsPolicy ?? {loggingEnabled:state.diagnosticsEnabled === true, monitoringEnabled:state.diagnosticsEnabled === true};
     if(state.lightingResources)this.lightingResources.state=clone(state.lightingResources);
     if (state.rfBinding) this.rfBinding.state = clone(state.rfBinding);
     if (!Array.isArray(state.profiles) || state.profiles.length === 0) {

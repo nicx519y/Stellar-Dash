@@ -1,3 +1,4 @@
+#define XORA_USB_MONITOR_IMPLEMENTATION
 #include "usb_monitor.h"
 #include "usb_device.h"
 #include "usb_webhid_memory.h"
@@ -42,7 +43,15 @@ void usb_monitor_reset(void) {
     inflight_input=0u;inflight_row=255u;
     received=completed=overwritten=drops=source_drops=next_id=0u;rate=0u;page=4u;
 }
+void usb_monitor_policy_reset(void) {
+    uint32_t key=usb_device_irq_save();
+    flags=baseline=clock_valid=inflight_input=0u;inflight_row=255u;page=4u;
+    session++;if(!session)session=1u;
+    memset(rows,0,sizeof(rows));
+    usb_device_irq_restore(key);
+}
 static USB_WEBHID_RAM uint8_t active(uint32_t now) {
+    if(!XORA_DIAGNOSTICS_ENABLED) return 0u;
     if(flags && now-lease_at>=UM_LEASE_US) {
         flags=0u;baseline=0u;clock_valid=0u;
         inflight_row=255u;page=4u;
@@ -50,9 +59,11 @@ static USB_WEBHID_RAM uint8_t active(uint32_t now) {
     return flags;
 }
 bool usb_monitor_control(const uint8_t *data,uint16_t length,uint8_t response[32],uint8_t speed) {
-    uint32_t now=usb_monitor_now();uint8_t status=0u;
+    uint32_t now=XORA_DIAGNOSTICS_ENABLED ? usb_monitor_now() : 0u;uint8_t status=0u;
+    if(!XORA_DIAGNOSTICS_ENABLED) { flags=baseline=clock_valid=0u;page=4u;inflight_row=255u; }
     if(length!=32u || um_u32(data)!=UM_CONTROL_MAGIC)return false;
     if(data[4]!=UM_VERSION || um_crc(data,30)!=um_u16(data+30))status=1u;
+    else if(!XORA_DIAGNOSTICS_ENABLED && (data[5]==UM_RENEW || (data[5]==UM_CONFIGURE && data[7])))status=4u;
     else if(data[5]==UM_CONFIGURE) {
         uint16_t p=um_u16(data+16);
         if((data[7]&~3u) || (p!=100u && p!=250u && p!=500u && p!=1000u))status=2u;
@@ -71,7 +82,7 @@ bool usb_monitor_control(const uint8_t *data,uint16_t length,uint8_t response[32
     memset(response,0,32);um_put32(response,UM_CONTROL_MAGIC);
     response[4]=UM_VERSION;response[5]=data[5];response[6]=status;response[7]=active(now);
     um_put32(response+8,um_u32(data+8));um_put32(response+12,session);
-    um_put16(response+16,period_ms);response[18]=speed;response[19]=3u;
+    um_put16(response+16,period_ms);response[18]=speed;response[19]=7u;response[24]=XORA_DIAGNOSTICS_ENABLED;
     um_put32(response+20,drops+source_drops);um_put16(response+30,um_crc(response,30));return true;
 }
 /* Native queue owns tokens until it drops or arms each report. A token is an

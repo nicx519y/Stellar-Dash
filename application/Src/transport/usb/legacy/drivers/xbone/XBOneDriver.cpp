@@ -621,7 +621,7 @@ bool XBOneDriver::send_xbone_usb(uint8_t const *report, uint16_t report_size)
     {
         usbd_edpt_claim(0, p_xbone->ep_in); // Take control of IN endpoint
 #if APPLICATION_DEBUG_PRINT == 1
-        LATENCY_MONITOR.usbInStarted();
+        XORA_DIAGNOSTIC_CALL(LATENCY_MONITOR.usbInStarted());
 #endif
         usbd_edpt_xfer(0, p_xbone->ep_in, (uint8_t *)report, report_size); // Send report buffer
         usbd_edpt_release(0, p_xbone->ep_in);                              // Release control of IN endpoint

@@ -6,6 +6,7 @@
 #include "fault_log_api.h"
 #include "battery_test_log.h"
 #include "usb_board_link.hpp"
+#include "storagemanager.hpp"
 #include <cmath>
 #include <cstdio>
 
@@ -173,5 +174,40 @@ DeviceCommandResponse CommonCommandHandler::handleGetDeviceLogsList(const Device
     }
     cJSON_AddItemToObject(result,"items",items);cJSON_AddNumberToObject(result,"count",count);
     return create_success_response(request.getCid(),request.getCommand(),result);
+}
+__attribute__((section(".xora_log_rpc")))
+DeviceCommandResponse CommonCommandHandler::handleDiagnosticsPolicy(const DeviceCommandRequest &request) {
+    auto &storage = Storage::getInstance();
+    const bool write = request.getCommand() == "set_diagnostics_policy";
+    if (write) {
+        const cJSON *logs = cJSON_GetObjectItemCaseSensitive(request.getParams(), "loggingEnabled");
+        const cJSON *monitor = cJSON_GetObjectItemCaseSensitive(request.getParams(), "monitoringEnabled");
+        if (!cJSON_IsBool(logs) || !cJSON_IsBool(monitor))
+            return create_error_response(request.getCid(), request.getCommand(), 400, "Both policy fields must be boolean");
+        const uint8_t previous = storage.config.screenControl.serviceFlags;
+        const uint8_t enabled = (cJSON_IsTrue(logs) ? XORA_LOGGING_FLAG : 0u) |
+            (cJSON_IsTrue(monitor) ? XORA_MONITOR_FLAG : 0u);
+        storage.config.screenControl.serviceFlags = (previous & ~SCREEN_SERVICE_DIAGNOSTICS_ENABLED) | (enabled << 2);
+        if (!storage.saveConfig()) {
+            storage.config.screenControl.serviceFlags = previous;
+            return create_error_response(request.getCid(), request.getCommand(), 500, "Diagnostics policy was not saved");
+        }
+        XoraDiagnostics_SetEnabled(enabled);
+    }
+    const uint8_t enabled = XORA_POLICY_WIRE;
+    uint8_t reply[2]={}, size=0, status=0xff;
+    const bool ok=USB_BOARD_LINK.sendControl(USB_BOARD_CONTROL_DIAGNOSTICS,
+        write ? &enabled : nullptr, write ? 1u : 0u, reply, sizeof(reply), &size, &status);
+    const char *tx = ok && size==2u && reply[0]==XORA_DIAGNOSTICS_VERSION && reply[1]==XORA_POLICY_FLAGS
+        ? "applied" : status==USB_BOARD_STATUS_UNSUPPORTED ? "unsupported" : "pending";
+    cJSON *data=cJSON_CreateObject();
+    cJSON_AddNumberToObject(data,"version",XORA_DIAGNOSTICS_VERSION);
+    cJSON_AddBoolToObject(data,"loggingEnabled",XORA_LOGGING_ENABLED);
+    cJSON_AddBoolToObject(data,"monitoringEnabled",XORA_DIAGNOSTICS_ENABLED);
+    cJSON_AddStringToObject(data,"controller","applied");
+    cJSON_AddStringToObject(data,"tx",tx);
+    // USB maintenance cannot observe the independent receiver's RF session.
+    cJSON_AddStringToObject(data,"rx","pending");
+    return create_success_response(request.getCid(),request.getCommand(),data);
 }
 #pragma GCC pop_options

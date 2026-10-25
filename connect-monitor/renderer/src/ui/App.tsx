@@ -9,14 +9,13 @@ import {
   Heading,
   HStack,
   IconButton,
-  Switch,
   Tabs,
   Text,
   VStack,
 } from "@chakra-ui/react";
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FaPause, FaPlay, FaRegWindowMaximize, FaRegWindowMinimize, FaRegWindowRestore } from "react-icons/fa";
+import { FaRegWindowMaximize, FaRegWindowMinimize, FaRegWindowRestore } from "react-icons/fa";
 import { GrClearOption } from "react-icons/gr";
 import { LuWifi, LuWifiHigh, LuWifiLow, LuWifiZero } from "react-icons/lu";
 import { TfiClose } from "react-icons/tfi";
@@ -325,13 +324,15 @@ function MetricCard({
 function RateLossMetricCard({
   reportHz,
   packetLoss,
+  rfValid,
   usb,
 }: {
   reportHz: number;
   packetLoss: number;
+  rfValid: boolean;
   usb?: { rateHz: number | null; overwritten: number | null };
 }) {
-  const lossAlert = !usb && packetLoss >= 3;
+  const lossAlert = !usb && rfValid && packetLoss >= 3;
 
   const MetricSection = ({
     title,
@@ -377,7 +378,7 @@ function RateLossMetricCard({
         <Box h="50%" py={2}>
           <MetricSection
             title="Report Rate"
-            value={usb ? usb.rateHz?.toFixed(1) ?? "—" : reportHz.toFixed(1)}
+            value={usb ? usb.rateHz?.toFixed(1) ?? "—" : rfValid ? reportHz.toFixed(1) : "—"}
             unit="Hz"
             description={usb ? "实际 EP1 IN 完成计数 / 设备时间" : "RX valid DATA / Device telemetry window"}
           />
@@ -385,7 +386,7 @@ function RateLossMetricCard({
         <Box h="50%" py={2}>
           <MetricSection
             title={usb ? "Pending Overwrites" : "RF Input Deficit"}
-            value={usb ? usb.overwritten?.toLocaleString() ?? "—" : packetLoss.toFixed(2)}
+            value={usb ? usb.overwritten?.toLocaleString() ?? "—" : rfValid ? packetLoss.toFixed(2) : "—"}
             unit={usb ? "次" : "%"}
             description={usb ? "待发送状态累计覆盖次数" : "Recent telemetry window packet loss rate"}
             alert={lossAlert}
@@ -556,56 +557,23 @@ function VoltageTimelineCard({
 
 const defaultDebugConfig: DebugConfig = {
   hidTelemetryEnabled: true,
+  latencyMeasurementEnabled: true,
   hidPeriodMs: 250,
   autoHopEnabled: true,
   manualChannel: null,
 };
 
-function DebugSwitch({
-  label,
-  checked,
-  onCheckedChange,
-}: {
-  label: string;
-  checked: boolean;
-  onCheckedChange: (checked: boolean) => void;
-}) {
-  return (
-    <Switch.Root
-      checked={checked}
-      colorPalette="green"
-      size="sm"
-      display="flex"
-      alignItems="center"
-      gap={2}
-      onCheckedChange={(details) => onCheckedChange(details.checked)}
-    >
-      <Switch.HiddenInput />
-      <Switch.Control borderColor={checked ? "rgba(92,255,138,0.7)" : "rgba(148,163,184,0.3)"}>
-        <Switch.Thumb />
-      </Switch.Control>
-      <Switch.Label fontSize="xs" color={checked ? neonGreen : "gray.300"} whiteSpace="nowrap">
-        {label}
-      </Switch.Label>
-    </Switch.Root>
-  );
-}
-
 function DebugControlCard({
   config,
   status,
   message,
-  paused,
   applyConfig,
-  onPauseToggle,
   onClearData,
 }: {
   config: DebugConfig;
   status: DebugApplyState;
   message: string;
-  paused: boolean;
   applyConfig: (next: DebugConfig) => void;
-  onPauseToggle: () => void;
   onClearData: () => void;
 }) {
   return (
@@ -625,27 +593,9 @@ function DebugControlCard({
         </HStack>
         <VStack align="stretch" gap={2} mt={3}>
           <HStack gap={2} align="center">
-            <DebugSwitch
-              label="HID"
-              checked={config.hidTelemetryEnabled}
-              onCheckedChange={(checked) => applyConfig({ ...config, hidTelemetryEnabled: checked })}
-            />
-            <DebugSwitch
-              label="Latency"
-              checked={config.latencyMeasurementEnabled === true}
-              onCheckedChange={(checked) => applyConfig({ ...config, latencyMeasurementEnabled: checked })}
-            />
-            <Button
-              {...toolbarActionButtonProps}
-              w="134px"
-              ml="auto"
-              variant={paused ? "solid" : toolbarActionButtonProps.variant}
-              colorPalette={paused ? "yellow" : "green"}
-              onClick={onPauseToggle}
-            >
-              {paused ? <FaPlay /> : <FaPause />}
-              {paused ? "Start Listening" : "Pause Listening"}
-            </Button>
+            <Text fontSize="xs" color="gray.400">采集由 Device Logs 的“诊断监控采集”控制</Text>
+            <Button {...toolbarActionButtonProps} onClick={() => applyConfig(config)}>重新连接采集</Button>
+
           </HStack>
           <Box h="1px" my={1.5} bg="rgba(92,255,138,0.16)" />
           <HStack gap={2} align="center">
@@ -673,7 +623,7 @@ function after(timestampMs: number, clearAfterMs: number | undefined) {
 }
 
 export function App() {
-  const { devices, usb, events, packets, latency, buttonLatency: rfButtonLatency, powerStatus: rfPowerStatus, chart, rateSeries, lossSeries, channelSwitches, channelScores, paused, setPaused, clear } = useMonitorStream();
+  const { devices, usb, events, packets, latency, buttonLatency: rfButtonLatency, powerStatus: rfPowerStatus, chart, rateSeries, lossSeries, channelSwitches, channelScores, paused, clear } = useMonitorStream();
   const [sourceMode,chooseSource]=useMonitorSource(devices);
   const deviceBindings=useDeviceBindings(sourceMode);
   const usbKey=deviceBindings.state?.bindings.USB.telemetryId??undefined;
@@ -711,11 +661,12 @@ export function App() {
         : Math.max(packets.usbTxPerSec, packets.rfRxPerSec)
     : 0;
   const latestLoss = rfConnected && lossSeries.length > 0 ? lossSeries[lossSeries.length - 1].value : 0;
-  const powerValid = Boolean(powerStatus?.valid);
+  const powerStale = !!powerStatus && now-powerStatus.timestampMs>3000;
+  const powerValid = Boolean(powerStatus?.valid) && !powerStale;
   const batteryMv = primaryBatteryMv(powerStatus);
   const batteryVoltageText = powerValid ? `${displayMillivolts(batteryMv)}V` : "--V";
   const batteryCornerDetail = powerStatus
-    ? `${powerStatus.valid ? `${powerStatus.socPercent.toFixed(0)}%` : "--%"} · ${powerStatus.chargeState}${(powerStatus.faultBits ?? 0) !== 0 ? ` · fault 0x${(powerStatus.faultBits ?? 0).toString(16).padStart(4, "0")}` : ""}`
+    ? `${powerValid ? `${powerStatus.socPercent.toFixed(0)}%` : "--%"} · ${powerStale ? "Stale" : powerStatus.chargeState}${powerStatus.powerOrigin==="voltage" ? " · Voltage estimate" : powerStatus.socEstimated ? " · Estimated" : ""}${(powerStatus.faultBits ?? 0) !== 0 ? ` · fault 0x${(powerStatus.faultBits ?? 0).toString(16).padStart(4, "0")}` : ""}`
     : "No data";
   const ch585StatusText = powerStatus?.ch585Role
     ? `CH585 ${powerStatus.ch585Role}${powerStatus.ch585Version ? ` v${powerStatus.ch585Version}` : ""}`
@@ -886,9 +837,7 @@ export function App() {
             config={debugConfig}
             status={debugStatus}
             message={debugMessage}
-            paused={paused}
             applyConfig={applyDebugConfig}
-            onPauseToggle={() => setPaused(!paused)}
             onClearData={handleClearData}
           />
           {sourceMode === "USB" ? <MetricCard
@@ -921,7 +870,8 @@ export function App() {
             cornerSignalLevel={rssiSignalLevel(rfRssi)}
           />}
           <RateLossMetricCard reportHz={reportHz} packetLoss={latestLoss}
-            usb={sourceMode === "USB" ? { rateHz: usbRate, overwritten: usbStatistics?.overwritten ?? null } : undefined} />
+            rfValid={rfConnected && rfStatus?.rateValid !== false && now - (rfStatus?.timestampMs ?? 0) <= 3000}
+            usb={sourceMode === "USB" ? { rateHz: usbRate, overwritten: usbFresh ? usbStatistics.overwritten : null } : undefined} />
           <VoltageTimelineCard points={voltageHistory} />
         </Box>
 

@@ -9,6 +9,12 @@ export function mockFaultLogs(query: FaultLogQuery, scenario: MockLogScenario = 
     event: i % 2 ? 4 : 7, severity: i % 2 ? 3 : 2, category: i % 2 ? 2 : 3,
     repeat: 1, pending: false, data: [i % 2 ? 9 : 4],
   }));
+  if (source !== 'battery' && (scenario as string) === 'connection') records = records.map((r, i) => ({
+    ...r, event: i % 3 === 0 ? 202 : i % 3 === 1 ? 201 : 200,
+    category: i % 3 === 0 ? 3 : 2, severity: i % 3 === 0 ? 2 : 3,
+    data: [1, 7 - Math.floor(i / 3), source === 'tx' ? 1 : 2, source === 'rx' ? 0x418 : 0x88,
+      1000, i % 3 === 0 ? 300 : i % 3 === 1 ? 50 : 0, 0x73, 12500, 12400, 12, 55, 28, 0x10000 | 8000, 0],
+  }));
   if (source === 'battery') records = records.map((r, i) => ({
     ...r, category: 4, severity: 1, event: i === 0 ? 114 : i === 18 ? 100 : 102,
     uptimeMs: (19 - i) * 300000, data: i === 0 ? [1, 7, 1, 5400000, 5200000, 0, 190, 0, 0] :

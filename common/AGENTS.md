@@ -21,7 +21,7 @@
 - 固件暂存、配置日志、身份/版本记录各有提交语义；保留先写正文、验证、最后提交的原子性要求，不把读失败解释为空白可擦除。
 - 软件安全代码和公开验签材料不构成设置硬件锁的许可。无锁开发 bootloader 整扇区重刷会清空内部身份与版本日志；不得把该入口用于保留原身份的恢复。
 - [test_vectors](test_vectors/) 的协议/密码学向量应随有意的协议变更同步，不能仅为消除不一致而改成当前错误输出；记录版本和配套消费者需求。
-- [system_logger.h](system_logger.h) 的旧文本 API 保持空实现，`Logger_Flush` 仅申请写入。持久故障日志使用 [fault_log_api.h](fault_log_api.h) 和 [fault_log.h](fault_log.h)，异常现场仅写复位保留 RAM；地址、安全窗口和验证见 [设备日志](../docs/device-fault-logs.md)。
+- [system_logger.h](system_logger.h) 的旧文本 API 保持空实现，`Logger_Flush` 仅申请写入。持久故障日志使用 [fault_log_api.h](fault_log_api.h) 和 [fault_log.h](fault_log.h)，CPU 异常入口仅写复位保留 RAM；仅确认断链或 fatal 及其恢复证据允许持久化；普通超时、挂起和恢复尝试不能触发擦写。日志不得主动暂停输入、RF、USB 或延迟重连，只使用业务自身已停下的启动/断开/维护窗口。地址、安全窗口和验证见 [设备日志](../docs/device-fault-logs.md)。
 
 ## 验证范围
 

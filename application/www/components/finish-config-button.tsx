@@ -4,7 +4,7 @@ import { closeDialog as closeFinishDialog, openDialog as openFinishDialog, updat
 import { useLanguage } from "@/contexts/language-context";
 import { useGamepadFields } from "@/contexts/gamepad-config-context";
 import { configuredTransportMode } from "@/lib/device-transport";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { toaster } from "@/components/ui/toaster";
 import { useConfigSyncStatus } from "@/components/config-sync-status";
 
@@ -24,21 +24,9 @@ export function FinishConfigButton(
     } = useGamepadFields("exitWebConfig", "setUserRebooting", "flushDeferredConfig", "terminateWebConfigActivities", "setError");
     const [closing, setClosing] = useState(false);
     const [hovered, setHovered] = useState(false);
-    const [labelWidth, setLabelWidth] = useState<number | null>(null);
-    const measureRef = useRef<HTMLSpanElement>(null);
     const { status, text, background, foreground, Icon, busy, zh } = useConfigSyncStatus();
     const actionText = zh ? '点击结束配置并开始游戏' : 'Click to finish configuration';
     const label = hovered && !props.disabled && !closing ? actionText : text;
-
-    useLayoutEffect(() => {
-        const measure = measureRef.current;
-        if (!measure) return;
-        const updateWidth = () => setLabelWidth(Math.ceil(measure.getBoundingClientRect().width));
-        updateWidth();
-        const observer = new ResizeObserver(updateWidth);
-        observer.observe(measure);
-        return () => observer.disconnect();
-    }, [label]);
 
     return (
         <Button
@@ -49,15 +37,15 @@ export function FinishConfigButton(
             variant="solid"
             size="xs"
             minW={0}
-            width={labelWidth === null ? 'max-content' : `${labelWidth + 48}px`}
-            minH="36px"
+            width="full"
+            h={{ base: "48px", sm: "36px" }}
             px={3}
             bg={background}
             color={foreground}
             borderRadius="md"
             overflow="hidden"
             whiteSpace="nowrap"
-            transition="width 240ms ease, background-color 180ms ease"
+            transition="background-color 180ms ease"
             _hover={{ bg: background, filter: 'brightness(1.08)' }}
             _disabled={{ opacity: 1 }}
             _motionReduce={{ transition: 'none' }}
@@ -66,6 +54,7 @@ export function FinishConfigButton(
             onFocus={() => setHovered(true)}
             onBlur={() => setHovered(false)}
             aria-label={label}
+            title={label}
             onClick={async () => {
                 const confirmed = await openFinishConfirmDialog({
                     title: t.DIALOG_FINISH_CONFIRM_TITLE,
@@ -114,14 +103,12 @@ export function FinishConfigButton(
 
             }}
         >
-            <HStack gap={2} flexShrink={0}>
+            <HStack gap={2} minW={0} w="full" justify="center">
                 <Box w={4} h={4} display="grid" placeItems="center" flexShrink={0}>
                     {busy ? <Spinner size="xs" /> : <Box as={Icon} />}
                 </Box>
-                <Text as="span" fontSize="xs" fontWeight="medium" whiteSpace="nowrap" aria-live="polite">{label}</Text>
+                <Text as="span" fontSize="xs" fontWeight="medium" whiteSpace="normal" lineHeight="14px" aria-live="polite">{label}</Text>
             </HStack>
-            <Box as="span" ref={measureRef} position="absolute" visibility="hidden" pointerEvents="none"
-                aria-hidden="true" fontSize="xs" fontWeight="medium" whiteSpace="nowrap">{label}</Box>
         </Button>
     )
 }

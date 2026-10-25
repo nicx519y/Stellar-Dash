@@ -12,6 +12,7 @@
 *******************************************************************************/
 
 #include <ch585_usbhs_device.h>
+#include "rx_fault_log.h"
 #define RX_PROFILE_WRAP_IRQ
 #include "rx_profile.h"
 #include "RF_PHY.h"
@@ -324,6 +325,20 @@ uint8_t USBHS_Endp_DataUp( uint8_t endp, uint8_t *pbuf, uint16_t len, uint8_t mo
     return USBHS_Endp_DataUpTimed(endp,pbuf,len,mod,0);
 }
 
+/* A host HALT/CLEAR_HALT cancels the endpoint's old transfer. Reset the
+ * hardware and pipeline ownership together; never report it as completed. */
+static void USBHS_GameEndpointHalt(uint8_t halt)
+{
+    uint32_t key; SYS_DisableAllIrq(&key);
+    R8_U2EP2_TX_CTRL = USBHS_UEP_T_RES_NAK;
+    R16_U2EP2_T_LEN = 0;
+    USBHS_Endp_Busy[DEF_UEP2] &= ~DEF_UEP_BUSY;
+    UploadPoint_Busy = 0;
+    RF_RelativeUsbReset();
+    R8_U2EP2_TX_CTRL = halt ? USBHS_UEP_T_RES_STALL : USBHS_UEP_T_RES_NAK;
+    SYS_RecoverIrq(key);
+}
+
 /*********************************************************************
  * @fn      USBHS_IRQHandler
  *
@@ -336,7 +351,7 @@ __HIGH_CODE
 void USB2_DEVICE_IRQHandler( void )
 {
     RXP_SCOPE(usb_scope,RT_USB,1);
-    const uint32_t relative_usb_tick=TMR0_GetCurrentTimer();
+    const uint32_t relative_usb_tick=XORA_DIAGNOSTICS_ENABLED ? TMR0_GetCurrentTimer() : 0u;
     uint8_t  intflag, intst, errflag;
     uint16_t len;
     uint8_t endp_num;
@@ -702,6 +717,9 @@ void USB2_DEVICE_IRQHandler( void )
                                             /* Clear End-point Feature */
                                             switch( (uint8_t)(USBHS_SetupReqIndex&0xFF) )
                                             {
+                                                case (DEF_UEP2 | DEF_UEP_IN):
+                                                    USBHS_GameEndpointHalt(0);
+                                                    break;
                                                 case (DEF_UEP1 | DEF_UEP_OUT):
                                                         /* Set End-point 2 OUT ACK */
                                                         R8_U2EP1_RX_CTRL = USBHS_UEP_R_RES_ACK;
@@ -791,6 +809,9 @@ void USB2_DEVICE_IRQHandler( void )
                                             /* Set end-points status stall */
                                             switch((uint8_t)(USBHS_SetupReqIndex&0xFF) )
                                             {
+                                                case (DEF_UEP2 | DEF_UEP_IN):
+                                                    USBHS_GameEndpointHalt(1);
+                                                    break;
                                                 case (DEF_UEP1 | DEF_UEP_OUT):
                                                         /* Set End-point 1 OUT STALL */
                                                         R8_U2EP1_RX_CTRL = ( R8_U2EP1_RX_CTRL & ~USBHS_UEP_R_RES_MASK ) | USBHS_UEP_R_RES_STALL;
@@ -974,7 +995,8 @@ void USB2_DEVICE_IRQHandler( void )
                             }
                             else if( USBHS_SetupReqCode == HID_SET_REPORT )
                             {
-                                (void)RF_MonitorControlHandleReport(USBHS_EP0_Buf, len);
+                                if(!RX_LogRequest(USBHS_EP0_Buf,len))
+                                    (void)RF_MonitorControlHandleReport(USBHS_EP0_Buf, len);
                             }
                         }
                         else
@@ -1154,6 +1176,8 @@ void USB2_DEVICE_IRQHandler( void )
     }
     else if( intflag & USBHS_UDIF_BUS_RST )
     {
+        if(USBHS_DevEnumStatus) XORA_LOG_CALL(g_game_log_notices|=GL_USB_RESET);
+        RX_LogUsbReset();
         USBHS_DevEnumStatus = 0;
         RF_RelativeUsbReset();
         /* usb reset interrupt processing */

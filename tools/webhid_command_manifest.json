@@ -11,9 +11,9 @@
     {"name": "performance.clock-sync", "scope": "monitor.read"}
   ],
   "legacyCommandCount": 68,
-  "commandCount": 94,
+  "commandCount": 96,
   "migrationStatusCounts": {
-    "direct": 91,
+    "direct": 93,
     "equivalent": 1,
     "retired": 2
   },
@@ -25,6 +25,7 @@
     {
       "scope": "config.read",
       "commands": [
+        {"name": "get_diagnostics_policy", "migration": "direct", "consumers": ["logs"], "test": "contract"},
         {"name": "get_config_manifest", "migration": "direct", "consumers": ["startup", "config-cache"], "test": "contract"},
         {"name": "get_global_config", "migration": "direct", "consumers": ["startup", "global", "export"], "test": "contract"},
         {"name": "get_hotkeys_config", "migration": "direct", "consumers": ["startup", "hotkeys", "export"], "test": "contract"},
@@ -56,6 +57,7 @@
     {
       "scope": "config.write",
       "commands": [
+        {"name": "set_diagnostics_policy", "migration": "direct", "consumers": ["logs"], "test": "stubbed-dangerous"},
         {"name": "clear_device_logs", "migration": "direct", "consumers": ["logs"], "test": "stubbed-dangerous"},
         {"name": "update_global_config", "migration": "direct", "consumers": ["global"], "test": "contract"},
         {"name": "update_hotkeys_config", "migration": "direct", "consumers": ["hotkeys"], "test": "contract"},

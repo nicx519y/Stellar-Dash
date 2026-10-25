@@ -144,6 +144,26 @@ test('manual read after timeout waits for connection initialization without reco
  assert.equal(c.pending.size,0);m.stop();
 });
 
+test('connected refresh publishes current inventory without completing an unrelated saved task',async()=>{
+ const c=clock();let reconnects=0,queries=0;const observations=[],changes=[];
+ const current={...status(),sessionId:'rel-another',targetDigest:'b'.repeat(64)};
+ const saved={...task(),result:'timeout'};
+ const m=createInstallMonitor({task:saved,...c,connected:()=>true,reconnect:async()=>{reconnects++;},
+  query:async()=>{queries++;return current;},observed:i=>observations.push(i),changed:t=>changes.push(t)});
+ m.start();await c.advance(5000);assert.equal(queries,0);
+ await m.manual();assert.deepEqual(observations,[current]);assert.deepEqual(changes,[]);
+ assert.equal(reconnects,0);assert.equal(saved.result,'timeout');assert.equal(c.pending.size,0);m.stop();
+});
+
+test('explicit result refresh reports read failure and retains the unconfirmed task',async()=>{
+ const c=clock();const changes=[],observations=[];let queries=0;
+ const m=createInstallMonitor({task:{...task(),result:'timeout'},...c,connected:()=>true,reconnect:async()=>{},
+  query:async()=>{queries++;throw new Error('status unavailable');},observed:i=>observations.push(i),changed:t=>changes.push(t)});
+ await assert.rejects(m.manual(),/status unavailable/);
+ assert.equal(queries,1);assert.deepEqual(observations,[]);assert.deepEqual(changes,[]);
+ assert.equal(c.pending.size,0);m.stop();
+});
+
 test('connection finishing after deadline cannot start a new automatic status query',async()=>{
  const c=clock();let connected=false,resolve,queries=0;const opening=new Promise(r=>resolve=r);const changes=[];
  const m=createInstallMonitor({task:task(),...c,connected:()=>connected,

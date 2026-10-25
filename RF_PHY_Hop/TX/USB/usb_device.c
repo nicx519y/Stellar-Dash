@@ -1,6 +1,7 @@
 #include "usb_webhid_memory.h"
 #include "usb_device.h"
 #include "usb_monitor.h"
+#include "game_link_log.h"
 
 #include <string.h>
 
@@ -26,6 +27,12 @@ static uint8_t s_webhid_link_ready;
 static uint8_t s_webhid_report_in_flight;
 static uint8_t s_initialized;
 static uint8_t s_last_fault;
+static uint16_t s_game_rate = 1000u;
+static uint8_t s_game_expected;
+bool usb_device_game_expected(void) { return s_game_expected != 0; }
+void usb_device_game_expect(bool expected) { s_game_expected = expected; }
+bool usb_device_game_pending(void) { return s_report_pending != 0; }
+uint16_t usb_device_game_rate(void) { return s_game_rate; }
 
 static void clear_webhid_queue(void)
 {
@@ -34,6 +41,12 @@ static void clear_webhid_queue(void)
     s_webhid_tail = 0u;
     s_webhid_count = 0u;
     s_webhid_report_in_flight = 0u;
+}
+
+void usb_device_diagnostics_reset(void)
+{
+    s_telemetry_pending = 0u;
+    memset(s_latest_telemetry, 0, sizeof(s_latest_telemetry));
 }
 
 void usb_device_transport_reset(void)
@@ -133,7 +146,7 @@ void usb_device_process(void)
      * Telemetry uses an independent endpoint and a single latest-frame slot.
      * It never delays or consumes the XInput report endpoint.
      */
-    if((s_telemetry_pending != 0u) && usb_device_hw_is_mounted() &&
+    if(XORA_DIAGNOSTICS_ENABLED && (s_telemetry_pending != 0u) && usb_device_hw_is_mounted() &&
        usb_device_hw_send_telemetry(s_latest_telemetry,
                                     sizeof(s_latest_telemetry)))
     {
@@ -210,8 +223,11 @@ USB_WEBHID_RAM bool usb_device_submit_input(const usb_board_input_v1_t *input)
        !usb_profiles_build_report(s_profile, input, &s_latest_report))
     {
         s_last_fault = USB_BOARD_STATUS_CRC_ERROR;
+        XORA_LOG_CALL(g_game_log_notices |= GL_FRAME_ERROR);
         return false;
     }
+    XORA_LOG_CALL(++g_game_log_received);
+    s_game_rate = usb_board_input_rate_hz(input->flags);
     usb_device_hw_submit_input(input);
     if(s_profile == USB_BOARD_PROFILE_XINPUT &&
        usb_device_hw_queue_native_input(input,s_latest_report.bytes,s_latest_report.length))
@@ -220,12 +236,14 @@ USB_WEBHID_RAM bool usb_device_submit_input(const usb_board_input_v1_t *input)
         return true;
     }
     usb_device_hw_set_actions(input->action_mask_le);
+    if (s_report_pending) XORA_LOG_CALL(++g_game_log_dropped);
     s_report_pending = (s_latest_report.length != 0u) ? 1u : 0u;
     return true;
 }
 
 bool usb_device_submit_telemetry(const uint8_t *data, uint16_t length)
 {
+    if(!XORA_DIAGNOSTICS_ENABLED) return true;
     if((data == 0) || (length != USB_BOARD_TELEMETRY_FRAME_BYTES))
     {
         return false;

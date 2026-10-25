@@ -35,7 +35,9 @@ class FaultLogLayoutTests(unittest.TestCase):
         self.assertEqual(retained[1], 8, "retained section must be NOBITS")
         self.assertGreaterEqual(retained[3], symbols["_ebss"][0])
         self.assertGreaterEqual(symbols["_eusrstack"][0] - retained[3] - retained[5], 2048)
-        allocated = sum(s[1] for name, s in symbols.items() if name.startswith("log_") and (s[3] & 15) == 1)
+        allocated = sum(s[1] for name, s in symbols.items() if
+                        (name.startswith(("log_", "g_game_log_", "s_game_", "sampled_ms.", "enumeration_ms.", "game_log_at.")))
+                        and (s[3] & 15) == 1)
         self.assertLessEqual(allocated, 512)
         self.assertNotIn("_sbrk", symbols, "heap must not allocate over orphan NOLOAD storage")
         iap_sections, iap_symbols = elf(ROOT / "RF_PHY_Hop/TX/build_tx/RF_PHY_Hop_TX_iap.elf")
@@ -65,6 +67,16 @@ class FaultLogLayoutTests(unittest.TestCase):
             self.assertLess(address, 0x10000, f"{name} must execute from ITCM")
         print(f"STM32 retained=0x{retained[3]:08x}; AXI free="
               f"{0x24080000-retained[3]-retained[5]} bytes; logging executes in ITCM", flush=True)
+
+    def test_rx_retained_is_outside_bss_and_stack(self):
+        sections, symbols = elf(ROOT / "RF_PHY_Hop/RX/build_rx/RF_PHY_Hop_RX.elf")
+        retained = sections[".noinit.xora_fault"]
+        self.assertEqual(retained[1], 8)
+        self.assertGreaterEqual(retained[3], symbols["_ebss"][0])
+        self.assertGreaterEqual(symbols["_eusrstack"][0] - retained[3] - retained[5], 2048)
+        for name in ("log_runtime", "log_retained", "log_queue_crc"):
+            self.assertGreaterEqual(symbols[name][0], retained[3])
+            self.assertLessEqual(symbols[name][0]+symbols[name][1], retained[3]+retained[5])
 
 if __name__ == "__main__":
     unittest.main()

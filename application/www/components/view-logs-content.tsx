@@ -1,23 +1,26 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Box, Button, Heading, HStack, Text, VStack, Badge, Flex, Grid, Progress, createListCollection } from "@chakra-ui/react";
+import { Box, Heading, HStack, Text, VStack, Badge, Flex, Grid, Progress, createListCollection } from "@chakra-ui/react";
 import { LuBatteryMedium, LuCpu, LuFileJson, LuFileText, LuRadio, LuRefreshCw, LuPlay, LuTrash2, LuScrollText } from 'react-icons/lu';
 import { LogConfirmDialog } from '@/components/ui/log-confirm-dialog';
 import { navigationEvents } from '@/lib/event-manager';
 import { useLogOperation } from '@/lib/log-operation';
 import { logReadPercent } from '@/lib/device-fault-logs';
 import { PanelActionButton } from '@/components/ui/panel-action-button';
+import { SidebarList, SidebarListItems, SidebarListItem } from '@/components/ui/sidebar-list';
 import { SETTINGS_SIDEBAR_WIDTH } from '@/lib/ui-layout';
 import { SelectContent, SelectItem, SelectLabel, SelectRoot, SelectTrigger, SelectValueText } from "@/components/ui/select";
 import { deviceDisplayText } from "@/lib/device-display-text";
 import { BatteryTestLogSummary } from "./battery-test-log-summary";
+import { DiagnosticsPolicyControl } from "./diagnostics-policy-control";
 import { DeviceLogList } from "./device-log-list";
 import { useGamepadFields } from "@/contexts/gamepad-config-context";
 import { useLanguage } from "@/contexts/language-context";
 import { DeviceTransportState } from "@/lib/device-transport";
+import { openReceiverLogs } from '@/lib/device-transport/rx-log-client';
 import {
-  collectFaultLogs, logExport, logExportText,
+  collectFaultLogs, failedLogPage, logExport, logExportText,
   type FaultLogPage, type LogSource,
 } from "@/lib/device-fault-logs";
 
@@ -87,14 +90,21 @@ export function ViewLogsContent() {
   const operation = useLogOperation(state => state.operation);
   const setOperation = useLogOperation(state => state.setOperation);
   const busy = operation !== null;
+  // Policy saves share the device lock, but never replace log content or show
+  // log-read progress. Only actual log I/O owns the log card's loading state.
+  const logsBusy = operation === 'read' || operation === 'clear';
   const connected = deviceState === DeviceTransportState.CONNECTED && dataIsReady;
+  const rxDirect = source === 'rx' && process.env.NEXT_PUBLIC_DEVICE_TRANSPORT !== 'mock';
+  const readable = connected || rxDirect;
   const batteryLabel = zh ? '电池测试' : 'Battery test';
   const navigation = [
     { value: 'stm32' as const, label: t.controller, icon: LuCpu },
     { value: 'tx' as const, label: 'TX', icon: LuRadio },
+    { value: 'rx' as const, label: 'RX', icon: LuRadio },
     { value: 'battery' as const, label: batteryLabel, icon: LuBatteryMedium },
   ];
   const sourceLabel = navigation.find(item => item.value === source)!.label;
+  const rxNotice = zh ? '读取或清空 RX 日志会暂停接收器游戏输入；结束或 5 秒无请求后恢复。请选择对应接收器。' : 'Reading or clearing RX logs pauses receiver game input. Input resumes after closing or 5 seconds without requests. Select the matching receiver.';
   const result = results[source];
   const page = result && { ...result, items: result.items.filter(record =>
     (!category || record.category === category) && (!severity || record.severity === severity)) };
@@ -106,17 +116,17 @@ export function ViewLogsContent() {
     const resolve = resolveLeave.current; resolveLeave.current = null; resolve?.(leave);
   }
   useEffect(() => {
-    if (!connected) {
+    if (!connected && !rxDirect) {
       ++generation.current; setResults({}); setProgress(null); setOperation(null);
       setClearConfirm(false); setLeaveConfirm(false);
       resolveLeave.current?.(false); resolveLeave.current = null;
     }
-  }, [connected, setOperation]);
+  }, [connected, rxDirect, setOperation]);
   useEffect(() => {
     const guard = async () => {
       const active = useLogOperation.getState().operation;
       if (!active) return true;
-      if (active === 'clear') return false;
+      if (active === 'clear' || active === 'policy') return false;
       if (resolveLeave.current) return false;
       setLeaveConfirm(true);
       return new Promise<boolean>(resolve => { resolveLeave.current = resolve; });
@@ -144,23 +154,35 @@ export function ViewLogsContent() {
   useEffect(() => { scrollRef.current?.scrollTo(0, 0); }, [source, category, severity, result]);
 
   async function read() {
-    if (!connected || useLogOperation.getState().operation) return;
+    if (!readable || useLogOperation.getState().operation) return;
     const token = ++generation.current;
     setOperation('read'); setProgress(null); setMessage('');
-    // A fixed full-source snapshot supports local filters and honest progress.
-    const next = await collectFaultLogs(fetchDeviceLogsPage, { source },
-      () => generation.current !== token,
-      value => { if (generation.current === token) setProgress(value); });
+    let session: Awaited<ReturnType<typeof openReceiverLogs>> | undefined;
+    let next: FaultLogPage;
+    try {
+      if (rxDirect) session = await openReceiverLogs();
+      if (session) session.client.cancelled = () => generation.current !== token;
+      if (generation.current !== token) return;
+      next = await collectFaultLogs(session?.client.fetchPage ?? fetchDeviceLogsPage, { source },
+        () => generation.current !== token,
+        value => { if (generation.current === token) setProgress(value); });
+    } catch (error) { next = failedLogPage(source, error); }
+    finally { if (session) await session.close().catch(() => {
+      if (generation.current === token) setMessage(zh ? 'RX 结束应答未收到；接收器将在租约超时后恢复输入。' : 'RX close was not acknowledged; input resumes when its lease expires.');
+    }); }
     if (generation.current !== token) return;
     setResults(previous => ({ ...previous, [source]: next })); setOperation(null);
   }
   async function clearLogs() {
     setClearConfirm(false);
-    if (!connected || useLogOperation.getState().operation) return;
+    if (!readable || useLogOperation.getState().operation) return;
     const token = ++generation.current;
     setOperation('clear'); setMessage('');
     try {
-      await flushDeferredConfig(() => clearDeviceLogs(source));
+      if (rxDirect) {
+        const session = await openReceiverLogs();
+        try { await session.client.clear(); } finally { await session.close(); }
+      } else await flushDeferredConfig(() => clearDeviceLogs(source));
       if (generation.current !== token) return;
       setResults(previous => ({ ...previous, [source]: undefined })); setProgress(null);
       setMessage(zh ? '此来源的日志已清空。' : 'Logs for this source have been cleared.');
@@ -174,7 +196,7 @@ export function ViewLogsContent() {
   }
   function download(format: 'json' | 'txt') {
     if (!page || busy) return;
-    const output = logExport([page], { source, category, severity });
+    const output = logExport(Object.values(results).filter((p): p is FaultLogPage => !!p), { source: 'read-sources', category: 0, severity: 0 });
     const text = format === 'json' ? JSON.stringify(output, null, 2) : logExportText(output);
     const url = URL.createObjectURL(new Blob([text], { type: format === 'json' ? 'application/json;charset=utf-8' : 'text/plain;charset=utf-8' }));
     const a = document.createElement('a'); a.href = url;
@@ -184,32 +206,29 @@ export function ViewLogsContent() {
   }
   return <>
     <Flex p={{ base: 3, md: '18px' }} width="full" height="100%" flex={1} minW={0} minH={0}
-      overflow="hidden" direction={{ base: 'column', md: 'row' }} fontSize="sm" letterSpacing="normal">
-      <Flex as="aside" data-testid="log-sidebar" direction="column" gap={3} flexShrink={0}
+      overflow={{ base: "auto", md: "hidden" }} direction={{ base: 'column', md: 'row' }} fontSize="sm" letterSpacing="normal">
+      <SidebarList as="aside" data-testid="log-sidebar" title={t.title} flexShrink={0}
         width={{ base: 'full', md: SETTINGS_SIDEBAR_WIDTH }} minW={{ md: SETTINGS_SIDEBAR_WIDTH }}
         borderRightWidth={{ base: 0, md: '1px' }} borderColor="border" pr={{ md: '18px' }} pb={{ base: 3, md: 0 }}>
-        <Heading fontSize="md" fontWeight="semibold">{t.title}</Heading>
-        <Flex as="nav" aria-label={t.source} direction={{ base: 'row', md: 'column' }} gap={1} minW={0}>
-          {navigation.map(item => <Button key={item.value} variant="ghost" colorPalette="green" disabled={busy}
-            h="38px" px={3} gap={2.5} minW={0} flex={{ base: '1 1 0', md: 'none' }} w={{ md: 'full' }}
-            justifyContent={{ base: 'center', md: 'flex-start' }} borderWidth="1px" borderRadius="md"
-            borderColor={item.value === source ? 'green.muted' : 'transparent'}
-            bg={item.value === source ? 'green.subtle' : 'transparent'} color={item.value === source ? 'green.fg' : 'fg.muted'}
-            _hover={{ bg: 'bg.muted' }} aria-current={item.value === source ? 'page' : undefined}
+        <SidebarListItems as="nav" aria-label={t.source} direction={{ base: 'row', md: 'column' }}>
+          {navigation.map(item => <SidebarListItem key={item.value} selected={item.value === source} disabled={busy}
+            rowProps={{ flex: { base: '1 1 0', md: 'none' }, w: { md: 'full' } }}
+            justifyContent={{ base: 'center', md: 'flex-start' }} aria-current={item.value === source ? 'page' : undefined}
             onClick={() => { setSource(item.value); setMessage(''); }}>
             <Box as={item.icon} boxSize="15px" flexShrink={0} display={{ base: 'none', sm: 'block' }} />
             <Text as="span" truncate>{item.label}</Text>
-          </Button>)}
-        </Flex>
-      </Flex>
-      <VStack align="stretch" gap={3} flex={1} minW={0} minH={0} pl={{ md: 6 }}>
+          </SidebarListItem>)}
+        </SidebarListItems>
+      </SidebarList>
+      <VStack align="stretch" gap={3} flex={{ base: "none", md: 1 }} minW={0} minH={0} pl={{ md: 6 }}>
+        <DiagnosticsPolicyControl connected={connected} disabled={busy} />
         <Flex justify="space-between" align="center" gap={3} flexWrap="wrap" flexShrink={0}>
           <Heading as="h1" fontSize="xl">{sourceLabel}</Heading>
           <HStack gap={2} flexWrap="wrap">
-            <PanelActionButton accent disabled={!connected || busy} onClick={() => void read()}><LuRefreshCw />{t.refresh}</PanelActionButton>
-            <PanelActionButton disabled={!connected || busy} onClick={() => setClearConfirm(true)}><LuTrash2 />{zh ? '清空日志' : 'Clear logs'}</PanelActionButton>
-            <PanelActionButton disabled={!page || busy} onClick={() => download('json')}><LuFileJson />{t.export} JSON</PanelActionButton>
-            <PanelActionButton disabled={!page || busy} onClick={() => download('txt')}><LuFileText />{t.export} TXT</PanelActionButton>
+            <PanelActionButton accent disabled={!readable || busy} onClick={() => void read()}><LuRefreshCw />{t.refresh}</PanelActionButton>
+            <PanelActionButton disabled={!readable || busy} onClick={() => setClearConfirm(true)}><LuTrash2 />{zh ? '清空日志' : 'Clear logs'}</PanelActionButton>
+            <PanelActionButton disabled={!page || busy} onClick={() => download('json')}><LuFileJson />{zh ? '导出已读来源' : 'Export read sources'} JSON</PanelActionButton>
+            <PanelActionButton disabled={!page || busy} onClick={() => download('txt')}><LuFileText />{zh ? '导出已读来源' : 'Export read sources'} TXT</PanelActionButton>
           </HStack>
         </Flex>
         <Text color="fg.muted" fontSize="xs" lineHeight="1.6" lineClamp={2} title={t.note} flexShrink={0}>{t.note}</Text>
@@ -217,28 +236,34 @@ export function ViewLogsContent() {
           <LogFilter label={t.category} disabled={busy} value={String(category)} onValueChange={value => setCategory(Number(value))}
             items={[t.all, t.fault, t.link, t.recovery, batteryLabel].map((label, value) => ({ value: String(value), label }))} />
           <LogFilter label={t.severity} disabled={busy} value={String(severity)} onValueChange={value => setSeverity(Number(value))}
-            items={[{ value: '0', label: t.all }, { value: '2', label: t.warning }, { value: '3', label: t.error }, { value: '4', label: t.fatal }]} />
+            items={[{ value: '0', label: t.all }, { value: '1', label: zh ? '信息' : 'Info' }, { value: '2', label: t.warning }, { value: '3', label: t.error }, { value: '4', label: t.fatal }]} />
         </Grid>
-        {message && <Text role="status" fontSize="xs" flexShrink={0}>{message}</Text>}
-        <Flex as="section" data-testid="log-card" aria-label={sourceLabel} aria-busy={busy}
-          direction="column" flex={1} minH={0} minW={0} borderWidth="1px" borderRadius="lg" overflow="hidden" bg="bg.panel">
-          {busy || !page ? <Flex flex={1} minH={0} align="center" justify="center" p={6}>
+        <Box data-testid="log-feedback" position="relative" fontSize="xs" lineHeight="1.4" flexShrink={0}>
+          <Text visibility="hidden" aria-hidden="true">{rxNotice}</Text>
+          <Text role="status" position="absolute" inset={0} overflowY="auto" title={message || (source === 'rx' ? rxNotice : undefined)}
+            color={!message && source === 'rx' ? 'orange.fg' : undefined}>
+            {message || (source === 'rx' ? rxNotice : '')}
+          </Text>
+        </Box>
+        <Flex as="section" data-testid="log-card" aria-label={sourceLabel} aria-busy={logsBusy}
+          direction="column" flex={1} minH={{ base: "280px", md: 0 }} minW={0} borderWidth="1px" borderRadius="lg" overflow="hidden" bg="bg.panel">
+          {logsBusy || !page ? <Flex flex={1} minH={0} align="center" justify="center" p={6}>
             <VStack width="full" maxW="360px" gap={5}>
               <Flex boxSize="44px" align="center" justify="center" borderRadius="xl" borderWidth="1px" borderColor="green.muted" bg="green.subtle" color="green.fg"><LuScrollText size={20} /></Flex>
               <VStack gap={1.5}>
-                <Text fontSize="md" fontWeight="medium">{busy ? operation === 'clear' ? (zh ? '正在清空日志' : 'Clearing logs') : (zh ? '正在读取日志' : 'Reading logs') : (zh ? '日志尚未读取' : 'Logs have not been read')}</Text>
-                <Text fontSize="xs" color="fg.muted">{busy ? operation === 'clear' ? (zh ? '等待设备清空并校验存储区域…' : 'Waiting for device erase and verification…') : (zh ? '读取完成后显示完整列表。' : 'The list will appear when reading finishes.') : connected ? sourceLabel : t.disconnected}</Text>
+                <Text fontSize="md" fontWeight="medium">{logsBusy ? operation === 'clear' ? (zh ? '正在清空日志' : 'Clearing logs') : (zh ? '正在读取日志' : 'Reading logs') : (zh ? '日志尚未读取' : 'Logs have not been read')}</Text>
+                <Text fontSize="xs" color="fg.muted">{logsBusy ? operation === 'clear' ? (zh ? '等待设备清空并校验存储区域…' : 'Waiting for device erase and verification…') : (zh ? '读取完成后显示完整列表。' : 'The list will appear when reading finishes.') : connected ? sourceLabel : t.disconnected}</Text>
               </VStack>
-              {busy ? <Box width="full">
+              {logsBusy ? <Box width="full">
                 <Progress.Root value={operation === 'clear' ? null : percent} max={100} colorPalette="green" size="xs"
-                  aria-label={zh ? '日志读取进度' : 'Log read progress'}>
+                  aria-label={operation === 'clear' ? (zh ? '日志清空进度' : 'Log clear progress') : (zh ? '日志读取进度' : 'Log read progress')}>
                   <Progress.Track h="4px" borderRadius="full" bg="bg.emphasized"><Progress.Range borderRadius="full" bg="green.400" transition="width 180ms ease-out" /></Progress.Track>
                 </Progress.Root>
                 <Flex justify="space-between" mt={3} fontSize="10px" color="fg.muted" fontVariantNumeric="tabular-nums">
                   <Text>{operation === 'clear' ? sourceLabel : zh ? `已读取 ${progress?.items.length ?? 0} 条记录` : `${progress?.items.length ?? 0} records read`}</Text>
                   <Text color="green.fg">{operation === 'clear' || percent === null ? '···' : `${percent}%`}</Text>
                 </Flex>
-              </Box> : <PanelActionButton accent disabled={!connected} onClick={() => void read()}><LuPlay />{zh ? '开始读取日志' : 'Start reading logs'}</PanelActionButton>}
+              </Box> : <PanelActionButton accent disabled={!readable || busy} onClick={() => void read()}><LuPlay />{zh ? '开始读取日志' : 'Start reading logs'}</PanelActionButton>}
             </VStack>
           </Flex> : <>
             <Box px={{ base: 3, md: 4 }} py={3} borderBottomWidth="1px" lineHeight="1.4" flexShrink={0}>

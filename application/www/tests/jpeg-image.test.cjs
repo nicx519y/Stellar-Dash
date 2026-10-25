@@ -48,7 +48,7 @@ class Canvas {
     fillRect() {}, putImageData: image => { this.pixel = Array.from(image.data.subarray(0, 4)); },
     drawImage: source => { this.pixel = source.pixel; },
   }; }
-  async convertToBlob({ type }) { return new Blob([type === 'image/jpeg' ? fixture(this.pixel[0] ? 'red.jpg' : 'green.jpg') : 'preview'], { type }); }
+  async convertToBlob({ type }) { return new Blob([type === 'image/jpeg' ? fixture(this.pixel[0] ? 'red.jpg' : 'green.jpg') : JSON.stringify(this.pixel)], { type }); }
   toBlob(callback, type) { this.convertToBlob({ type }).then(callback); }
 }
 test('worker and main-thread canvas paths retain 500 ms GIF holds at twelve FPS', async () => {
@@ -60,6 +60,7 @@ test('worker and main-thread canvas paths retain 500 ms GIF holds at twelve FPS'
       globalThis.OffscreenCanvas = offscreen ? Canvas : undefined;
       globalThis.document = { createElement: () => new Canvas(0, 0) };
       const result = await processGalleryJpeg({ name: 'held.gif', type: 'image/gif', arrayBuffer: async () => Uint8Array.from(slowGif).buffer }, limits);
+      assert.deepEqual(JSON.parse(await result.preview.text()), [0, 255, 0, 255]);
       assert.equal(result.frameCount, 12); assert.equal(result.fps, 12); assert.equal(result.format, 3);
       const entries = jpeg.validateJpegPayload(new Uint8Array(result.payload), 12);
       assert.equal(entries[0].offset, entries[5].offset);
@@ -71,6 +72,27 @@ test('worker and main-thread canvas paths retain 500 ms GIF holds at twelve FPS'
       await assert.rejects(processGalleryJpeg(file, { ...exact, maxPayloadBytes: exact.maxPayloadBytes - 1 }), /Image capacity exceeded/);
       await assert.rejects(processGalleryJpeg(file, { ...limits, maxFrames: 11 }), /Image frame limit exceeded: 12\/11/);
       await assert.rejects(processGalleryJpeg(file), /Image capacity unavailable/);
+    }
+  } finally {
+    for (const [key, value] of Object.entries(saved)) { if (value === undefined) delete globalThis[key]; else globalThis[key] = value; }
+  }
+});
+
+const fastPosterGif = Buffer.from('R0lGODlhAQABAIEAAP8AAAAAAAAAAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh+QQAAQAAACwAAAAAAQABAAAIBAABBAQAIfkEAQEAAQAsAAAAAAEAAQCBAIAAAAAAAAAAAAAACAQAAQQEACH5BAEBAAEALAAAAAABAAEAgQAA/wAAAAAAAAAAAAgEAAEEBAAh+QQBAQABACwAAAAAAQABAIH//wAAAAAAAAAAAAAIBAABBAQAOw==', 'base64');
+test('upload processing saves frame three even when playback resampling skips it', async () => {
+  const saved = { OffscreenCanvas: globalThis.OffscreenCanvas, document: globalThis.document, ImageData: globalThis.ImageData };
+  try {
+    globalThis.ImageData = class { constructor(data) { this.data = data; } };
+    for (const offscreen of [true, false]) {
+      globalThis.OffscreenCanvas = offscreen ? Canvas : undefined;
+      globalThis.document = { createElement: () => new Canvas(0, 0) };
+      const result = await processGalleryJpeg({ name: 'fast.gif', type: 'image/gif', arrayBuffer: async () => Uint8Array.from(fastPosterGif).buffer },
+        { maxPayloadBytes: 10000, maxFrames: 180, fps: 12 });
+      assert.equal(result.frameCount, 1);
+      assert.equal(result.preview.type, 'image/png');
+      assert.deepEqual(JSON.parse(await result.preview.text()), [0, 0, 255, 255]);
+      const entries = jpeg.validateJpegPayload(new Uint8Array(result.payload), 1);
+      assert.equal(entries.length, 1);
     }
   } finally {
     for (const [key, value] of Object.entries(saved)) { if (value === undefined) delete globalThis[key]; else globalThis[key] = value; }

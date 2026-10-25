@@ -3,6 +3,7 @@
 #define XORA_WEBHID_COMMAND_POLICY_GENERATED_H
 
 static const char *const configRead[] = {
+    "get_diagnostics_policy",
     "get_config_manifest",
     "get_global_config",
     "get_hotkeys_config",
@@ -30,6 +31,7 @@ static const char *const configRead[] = {
 };
 
 static const char *const configWrite[] = {
+    "set_diagnostics_policy",
     "clear_device_logs",
     "update_global_config",
     "update_hotkeys_config",

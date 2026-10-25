@@ -4,6 +4,7 @@
 #include "board_latest_ch585.h"
 #include "board_role_selector.h"
 #include "fault_log_api.h"
+#include "game_link_log.h"
 
 int RF_FrozenMain(void);
 
@@ -32,7 +33,7 @@ int main(void)
 {
     usb_board_role_t role = USB_BOARD_ROLE_NONE;
     XoraLog_Init();
-    XoraLog_Service(1); // No active transport at this boot boundary.
+    XoraLog_SaveFaultWindow(); // Drain retained evidence before transport starts.
 
 #if(defined(DCDC_ENABLE)) && (DCDC_ENABLE == TRUE)
     PWR_DCDCCfg(ENABLE);

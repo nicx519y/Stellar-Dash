@@ -32,6 +32,42 @@ def run_checked(command):
 
 
 class AutoSleepTests(unittest.TestCase):
+    def test_stop_entry_selects_held_key_policy(self):
+        from tools.tests.test_ch585_usb_handshake import function
+        source=(ROOT/'application/Src/power/system_stop.cpp').read_text(encoding='utf-8')
+        harness='''
+#include <cassert>
+#include <cstdint>
+static bool allowHeld=false;
+static bool enterStop(uint32_t ms,uint32_t* pins,bool protection) {
+    assert(ms==1000);*pins=7;allowHeld=protection;return true;
+}
+'''
+        harness+=function(source,'extern "C" bool SystemStop_Enter(')
+        harness+=function(source,'extern "C" bool SystemStop_EnterProtection(')
+        harness+='''
+int main() {
+    uint32_t pins=0;
+    assert(SystemStop_Enter(1000,&pins) && pins==7 && !allowHeld);
+    assert(SystemStop_EnterProtection(1000,&pins) && pins==7 && allowHeld);
+}
+'''
+        with tempfile.TemporaryDirectory(prefix='xora-stop-entry-') as folder:
+            cpp,exe=Path(folder)/'entry.cpp',Path(folder)/'entry.exe'
+            cpp.write_text(harness,encoding='utf-8')
+            run_checked([shutil.which('g++'),'-std=c++17','-Wall','-Wextra','-Werror',str(cpp),'-o',str(exe)])
+            run_checked([str(exe)])
+        # Snapshot under IRQ masking, then arm the existing edge interrupts;
+        # evaluate current levels/events immediately before WFI.
+        mask=source.index('__disable_irq();',source.index('bool enterStop('))
+        snapshot=source.index('const StopWakeGate wakeGate(heldPins(), protection);',mask)
+        arm=source.index('const auto exti = armKeys();',snapshot)
+        check=source.index('wakeGate.mayWait(heldPins(), EXTI->PR1 & allPins, capturedPins,',arm)
+        self.assertLess(mask,snapshot)
+        self.assertLess(snapshot,arm)
+        self.assertLess(arm,check)
+        self.assertLess(check,source.index('__WFI()',check))
+
     def test_screen_standby_after_short_wake_press(self):
         compiler = shutil.which('g++')
         self.assertIsNotNone(compiler)
@@ -79,7 +115,7 @@ static const struct { float x, y, r; } HITBOX_BUTTON_POS_LIST[2] = {};''',
     def test_production_manager_with_fake_peripherals(self):
         compiler = shutil.which('g++')
         self.assertIsNotNone(compiler)
-        with tempfile.TemporaryDirectory(prefix='hbox-auto-sleep-runtime-') as folder:
+        with tempfile.TemporaryDirectory(prefix='hbox-auto-sleep-runtime-', ignore_cleanup_errors=True) as folder:
             temp = Path(folder)
             for name in ('board_cfg.h', 'board_power.hpp', 'board_mode.hpp',
                          'states/input_state.hpp', 'screen_control/spi_screen_manager.hpp',
@@ -99,16 +135,18 @@ static const struct { float x, y, r; } HITBOX_BUTTON_POS_LIST[2] = {};''',
                             str(ROOT / 'tools/tests/auto_sleep_runtime_test.cpp'),
                             str(ROOT / 'application/Src/power/system_sleep_manager.cpp'),
                             '-o', str(exe)])
+            protection_scenarios=('protection', 'protection-boot-key', 'protection-disabled-for-boot',
+                                  'protection-pin-reset', 'protection-fault', 'protection-stop-fault')
             for scenario in ('cycles', 'reset', 'boot-key', 'exclusive', 'prepare-timeout',
                              'mode-change', 'restore-failure', 'keepalive-failure',
                              'cancel-before-pause', 'pause-failure', 'reset-pending', 'noise',
                              'disabled', 'retime', 'software', 'fault', 'debugger',
                              'disable-prepare', 'disable-sleep', 'disable-restore',
                              'stop-fault', 'stop-failure', 'stop-short-key',
-                             'xinput-idle', 'xinput-neutral-failure', 'xinput-cycles', 'protection'):
+                             'xinput-idle', 'xinput-neutral-failure', 'xinput-cycles', *protection_scenarios):
                 print(f'auto-sleep runtime: {scenario}', flush=True)
                 run_checked([str(exe), scenario])
-            # Same production STOP gate with the compile-time switch disabled.
+            # Disabling ordinary Auto Sleep must not compile out battery protection.
             run_checked([compiler, '-std=c++17', '-Wall', '-Wextra', '-Werror',
                           '-DHBOX_AUTO_SLEEP_ENABLED=0', '-I', str(temp), '-I', str(ROOT / 'common'),
                          *application_include_flags(),
@@ -116,7 +154,9 @@ static const struct { float x, y, r; } HITBOX_BUTTON_POS_LIST[2] = {};''',
                          str(ROOT / 'tools/tests/auto_sleep_runtime_test.cpp'),
                          str(ROOT / 'application/Src/power/system_sleep_manager.cpp'),
                          '-o', str(exe)])
-            run_checked([str(exe), 'protection'])
+            for scenario in protection_scenarios:
+                print(f'auto-sleep compile switch off: {scenario}', flush=True)
+                run_checked([str(exe), scenario])
             print(f'auto-sleep runtime: passed in {time.monotonic() - started:.2f}s', flush=True)
 
     def test_stop_timer_and_power_maintenance(self):

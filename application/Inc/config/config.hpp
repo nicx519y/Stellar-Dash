@@ -171,6 +171,8 @@ static inline uint16_t normalizeScreenStandbyTimeoutSeconds(uint16_t seconds) {
 
 #define SCREEN_SERVICE_CH585_MANUAL_ISP_ACTIVE (1u << 0)
 #define SCREEN_SERVICE_CH585_IAP_CONFIRMED      (1u << 1)
+/* Independent device policy: bit 2 monitoring, bit 3 logging. */
+#define SCREEN_SERVICE_DIAGNOSTICS_ENABLED ((1u << 2) | (1u << 3))
 
 
 

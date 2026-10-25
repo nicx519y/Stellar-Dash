@@ -12,6 +12,7 @@
 #include "usbdriver.hpp"
 #include "system_logger.h"
 #include "fault_log_api.h"
+#include "game_link_log.h"
 #include "board_cfg.h"
 #include "stm32h7xx_hal.h"
 
@@ -404,7 +405,7 @@ void ConnectionManager::serviceRfStatusPoll()
 
 void ConnectionManager::recordRfRecoveryStart()
 {
-    XoraLog_Event(FL_EVENT_RF,FL_CATEGORY_LINK,FL_ERROR,RFBridgePort_HasReleaseFault()?1u:2u);
+    XoraLog_GameFault(GL_MODE_RF,GL_BOARD_FAULT,RFBridgePort_HasReleaseFault()?1u:2u);
     ++g_rfRuntimeRecoveryDiagnostic[1];
     if (g_rfRuntimeRecoveryDiagnostic[0] == 0u) {
         g_rfRuntimeRecoveryDiagnostic[0] = 0x52465231u;
@@ -440,6 +441,7 @@ bool ConnectionManager::serviceRfRuntimeRecovery()
         if (RF_SLEEP_RECOVERY.state() == RfSleepState::Ready) {
             rfRuntimeRecoveryActive = false;
             XoraLog_Event(FL_EVENT_RECOVERED,FL_CATEGORY_RECOVERY,FL_WARN,FL_EVENT_RF);
+            XoraLog_GameRecovered(GL_MODE_RF,0);
         }
         return true; // Failed stays parked; only an explicit mode change retries.
     }

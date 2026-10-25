@@ -12,6 +12,7 @@ export function LanguageSwitcher() {
             variant="surface"
             onClick={() => setLanguage(currentLanguage === 'en' ? 'zh' : 'en')}
             size="xs"
+            w="36px" flexShrink={0}
             aria-label={currentLanguage === 'en' ? 'Switch to Chinese' : '切换到英文'}
         >
             {currentLanguage === 'en' ? 'ZH' : 'EN'}

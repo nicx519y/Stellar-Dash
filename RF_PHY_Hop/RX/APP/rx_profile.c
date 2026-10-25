@@ -1,4 +1,5 @@
 #include "CONFIG.h"
+#define XORA_RX_PROFILE_IMPLEMENTATION
 #include "rx_profile.h"
 #include <string.h>
 static uint32_t hz_us, counts[RP_COUNT], timing[RT_TIMING_COUNT][RP_TIMING_WORDS];
@@ -18,9 +19,15 @@ __HIGH_CODE void RXP_Init(uint32_t hz) {
     last_snapshot=SysTick->CNT;
 }
 __HIGH_CODE void RXP_Enable(uint8_t on) {
+    if(on && !hz_us) RXP_Init(GetSysClock());
+    if(!on && !enabled) return;
     uint32_t key;SYS_DisableAllIrq(&key);
-    if(on && !enabled)last_snapshot=SysTick->CNT;
-    enabled=on && hz_us; if(!enabled)pending=0;
+    if(on && !enabled) {
+        memset(counts,0,sizeof(counts));memset(timing,0,sizeof(timing));
+        memset(spikes,0,sizeof(spikes));spike_next=irq_total=0;
+        pending=page=lock_depth=irq_depth=0;last_snapshot=SysTick->CNT;
+    }
+    enabled=on && hz_us; if(!enabled) { pending=0;lock_depth=irq_depth=0; }
     SYS_RecoverIrq(key);
 }
 __HIGH_CODE void RXP_Add(unsigned n,uint32_t value) {
@@ -62,7 +69,7 @@ __HIGH_CODE void RXP_Begin(rxp_scope_t *s,unsigned metric,uint8_t irq) {
     SYS_RecoverIrq(key);
 }
 __HIGH_CODE void RXP_End(rxp_scope_t *s) {
-    if(!s->active)return;
+    if(!s->active || !enabled)return;
     uint32_t key;SYS_DisableAllIrq(&key);uint32_t now=SysTick->CNT,elapsed=now-s->start;
     uint32_t children=irq_total-s->nested;
     if(s->irq){

@@ -36,6 +36,13 @@ export function galleryPreviewUrl(image: Pick<GalleryImage, 'sourceMime' | 'sour
   return image.sourceMime.toLowerCase() === 'image/gif' ? image.sourceUrl : image.previewUrl;
 }
 
+export function galleryPosterUrl(image: Pick<GalleryImage, 'sourceMime' | 'previewUrl'>): string {
+  // Invalidate previously cached first-frame PNGs after the frame-three backfill.
+  return image.sourceMime.toLowerCase() === 'image/gif'
+    ? `${image.previewUrl}${image.previewUrl.includes('?') ? '&' : '?'}poster=frame-3`
+    : image.previewUrl;
+}
+
 type Envelope<T> = { success?: boolean; data?: T; error?: string; message?: string };
 
 export class GalleryApiError extends Error {

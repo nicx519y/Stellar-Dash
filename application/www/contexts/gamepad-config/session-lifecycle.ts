@@ -104,6 +104,7 @@ export interface SessionLifecycleDependencies {
     deviceClient: DeviceCommandClient | null;
     deviceState: DeviceTransportState;
     userRebooting: boolean;
+    setUserRebooting: React.Dispatch<React.SetStateAction<boolean>>;
     firmwareUpdating: boolean;
     deferredConfigDirty: boolean;
     deferredConfigSaving: boolean;
@@ -414,6 +415,9 @@ export function useSessionLifecycle(dependencies: SessionLifecycleDependencies, 
                 },
                 onReady: (layout) => {
                     if (!client.markReady()) return;
+                    // Foreground/bfcache reconnects call client.connect directly.
+                    // A new ready session ends the previous exit/reboot pause too.
+                    dependencies.setUserRebooting(false);
                     dependencies.postReadyRequestSchedulerRef.current?.beginSession();
                     dependencies.buttonMonitorLeaseRef.current?.beginSession();
                     const identity = syncResult.manifest

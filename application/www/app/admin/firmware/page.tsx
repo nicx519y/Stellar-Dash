@@ -1,4 +1,5 @@
 'use client';
+import { FeedbackSlot } from '@/components/ui/feedback-slot';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DragEvent } from 'react';
 import { Badge, Box, Button, Center, Flex, Heading, HStack, Input, NativeSelect, Progress, Spinner, Stack, Text } from '@chakra-ui/react';
@@ -111,8 +112,10 @@ export default function AdminFirmwarePage() {
       actions={<Button asChild variant="surface" flexShrink={0}><Link href="/firmware/releases/">{zh ? '浏览固件目录' : 'Browse catalog'}<LuArrowUpRight /></Link></Button>} />
     {authLoading ? <Center minH="320px"><Spinner size="lg" colorPalette="green" /></Center> : !isAdmin ? <Alert colorPalette="orange" title={zh ? '请使用管理员账户登录。' : 'Sign in with an administrator account.'} /> : <>
       {process.env.NEXT_PUBLIC_OFFLINE_PREVIEW === 'true' && <Box bg="purple.subtle" color="purple.fg" borderRadius="lg" p="3" fontSize="sm">{zh ? 'MOCK 预览：数据仅存于本标签页，不执行真实签名校验或发布。' : 'MOCK PREVIEW: tab-local data, no real signature verification or publishing.'}</Box>}
+      <FeedbackSlot h="60px">
       {error && <Box role="alert" p="3" borderWidth="1px" borderColor="red.500" overflowWrap="anywhere">{deviceDisplayText(error, currentLanguage)}</Box>}
       {message && <Text role="status" color="green.600">{message}</Text>}
+      </FeedbackSlot>
       <AdminCard><Stack gap="4">
         <HStack><LuUpload /><Heading size="lg">{zh ? '导入发布包' : 'Import release package'}</Heading></HStack>
         <Text fontSize="sm" color="fg.muted">{zh ? '签名 ZIP · 最大 12 MiB · 包含主控 A/B、TX 和可选 RX。上传不会自动发布。' : 'Signed ZIP · up to 12 MiB · main controller A/B, TX and optional RX. Uploads are never published automatically.'}</Text>
@@ -127,14 +130,14 @@ export default function AdminFirmwarePage() {
             <input ref={input} hidden type="file" accept=".zip" onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; void upload(file); }} />
           </Stack>
         </Box>
-        {busy === 'import' && <><Text role="status">{progress < 100 ? `${zh ? '上传中' : 'Uploading'} ${progress}%` : (zh ? '服务器正在验签及检查组件…' : 'Server is verifying signatures and components…')}</Text><Progress.Root value={progress < 100 ? progress : null}><Progress.Track><Progress.Range /></Progress.Track></Progress.Root></>}
+        <Box h="48px">{busy === 'import' && <><Text role="status">{progress < 100 ? `${zh ? '上传中' : 'Uploading'} ${progress}%` : (zh ? '服务器正在验签及检查组件…' : 'Server is verifying signatures and components…')}</Text><Progress.Root value={progress < 100 ? progress : null}><Progress.Track><Progress.Range /></Progress.Track></Progress.Root></>}</Box>
       </Stack></AdminCard>
       <AdminCard><Stack gap="5">
       <HStack><LuPackage /><Heading size="lg">{zh ? '发布列表' : 'Releases'}</Heading><Badge variant="subtle">{releases.length}</Badge></HStack>
       <Flex gap="3" wrap="wrap"><Input maxW="340px" aria-label={zh ? '搜索版本或说明' : 'Search versions or notes'} placeholder={zh ? '搜索版本或更新说明' : 'Search versions or notes'} value={query} onChange={e => setQuery(e.target.value)} />
         <NativeSelect.Root maxW="200px"><NativeSelect.Field aria-label={zh ? '发布状态' : 'Release status'} value={status} onChange={e => setStatus(e.target.value)}><option value="">{zh ? '全部状态' : 'All states'}</option>{['draft', 'published', 'withdrawn'].map(s => <option key={s} value={s}>{statusName(s)}</option>)}</NativeSelect.Field><NativeSelect.Indicator /></NativeSelect.Root>
         <Button variant="surface" disabled={!!busy} loading={loading} onClick={() => void load()}>{zh ? '刷新列表' : 'Refresh'}</Button></Flex>
-      <Stack gap="2">{releases.map(r => <Flex key={r.id} p="4" borderWidth="1px" borderColor="app.border" borderRadius="lg" bg="app.canvas" align="center" justify="space-between" gap="3" wrap="wrap">
+      <Stack gap="2" h="min(55vh, 520px)" minH="260px" overflowY="auto" css={{ scrollbarGutter: "stable", "& > *": { flexShrink: 0 } }}>{releases.map(r => <Flex key={r.id} p="4" borderWidth="1px" borderColor="app.border" borderRadius="lg" bg="app.canvas" align="center" justify="space-between" gap="3" wrap="wrap">
         <Flex asChild minW="0" flex={{ base: '1 1 100%', md: '1' }} direction={{ base: 'column', md: 'row' }} gap="3" borderRadius="md" _hover={{ color: 'green.fg' }} _focusVisible={{ outline: '2px solid', outlineColor: 'green.500' }}><Link href={`/admin/firmware/detail/?id=${encodeURIComponent(r.id)}`}>
         <Stack gap="1" minW="0" flex="1"><HStack flexWrap="wrap"><Text fontWeight="bold">XORA {r.manifest.version}</Text><Badge colorPalette={r.status === 'published' ? 'green' : r.status === 'withdrawn' ? 'orange' : 'gray'}>{statusName(r.status)}</Badge></HStack>
           <Text fontSize="sm" color="fg.muted" overflowWrap="anywhere">{zh ? '硬件' : 'Hardware'} {r.manifest.hardwareVersion} · {r.manifest.artifacts.map(a => `${a.component === 'stm32' ? (zh ? '主控' : 'Main controller') : a.component.toUpperCase()}${a.slot ? ` ${a.slot}` : ''} ${a.version}`).join(' / ')}</Text>

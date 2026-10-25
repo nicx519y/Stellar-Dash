@@ -214,8 +214,8 @@ export default function AdminUsersPage() {
                   </Button>
                 </HStack>
               </Box>
-              <Box overflowX="auto">
-                <Table.Root size="sm" minWidth="900px" interactive>
+              <Box overflow="auto" h="320px" minH="260px" css={{ scrollbarGutter: "stable" }}>
+                <Table.Root tableLayout="fixed" css={{ "& td": { overflowWrap: "anywhere" } }} size="sm" minWidth="900px" interactive>
                   <Table.Header>
                     <Table.Row>
                       <Table.ColumnHeader>{copy.email}</Table.ColumnHeader>
@@ -256,10 +256,11 @@ export default function AdminUsersPage() {
                     ))}
                   </Table.Body>
                 </Table.Root>
-              </Box>
               {usersPage?.users.length === 0 && (
                 <Text color="fg.muted" textAlign="center">{copy.noUsers}</Text>
               )}
+              </Box>
+
               <Flex justifyContent="space-between" alignItems="center" gap={3} flexWrap="wrap">
                 <Text color="fg.muted" fontSize="sm">{pagingLabel}</Text>
                 <HStack>

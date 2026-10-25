@@ -1,4 +1,5 @@
 "use client";
+import { FeedbackSlot } from '@/components/ui/feedback-slot';
 import { useEffect, useRef, useState } from "react";
 import {
   Box,
@@ -182,15 +183,17 @@ function Resources() {
             });
         }}
       />
+      <FeedbackSlot>
       {error && (
         <Text role="alert" color="red.500">
           {error}
         </Text>
       )}
+      </FeedbackSlot>
       <Tabs.Content value={type} p="0">
       <Flex gap="6" direction={{ base: "column", lg: "row" }} align="start">
         <Stack flex="1" width="full" minW="0">
-          {loading ? (
+          {loading && !items.length ? (
             <Skeleton height="240px" />
           ) : (
             items

@@ -13,6 +13,11 @@ extern "C" {
 bool usb_device_init(usb_board_profile_t profile);
 void usb_device_shutdown(void);
 void usb_device_process(void);
+void usb_device_game_log_poll(void);
+bool usb_device_game_pending(void);
+bool usb_device_game_expected(void);
+void usb_device_game_expect(bool expected);
+uint16_t usb_device_game_rate(void);
 bool usb_device_set_profile(usb_board_profile_t profile);
 bool usb_device_submit_input(const usb_board_input_v1_t *input);
 bool usb_device_submit_telemetry(const uint8_t *data, uint16_t length);
@@ -23,6 +28,7 @@ void usb_device_webhid_report_complete(void);
  * published its receiver capacity. */
 /* Called by the hardware backend after disconnect/bus-reset/profile reset. */
 void usb_device_transport_reset(void);
+void usb_device_diagnostics_reset(void);
 bool usb_device_control(const uint8_t *payload, uint8_t length);
 bool usb_device_is_mounted(void);
 bool usb_device_is_suspended(void);

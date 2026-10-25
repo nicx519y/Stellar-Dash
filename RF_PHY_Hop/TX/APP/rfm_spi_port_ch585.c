@@ -12,6 +12,7 @@
 #include "rf_link_clock.h"
 #include "RF_PHY.h"
 #include "rf_source_trace.h"
+#include "game_link_log.h"
 
 #define SPI_WAKE_PIN                  RFM_BOARD_SPI_MISO_PIN
 #define SPI_WAKE_USE_INTX             0u
@@ -157,6 +158,7 @@ static uint8_t spi_rx_host_cmd_valid(uint8_t cmd)
     case 0x06u:
     case 0x07u:
     case 0x08u:
+    case 0x0Cu: /* master diagnostics policy */
     case 0x09u: /* sampling trace */
     case 0x0Au: /* clock echo */
         return 1u;
@@ -288,6 +290,7 @@ static void spi_rx_accept_input(const uint8_t *payload, uint32_t input_end)
         s_spi_rx_input_end=input_end;
         ++s_spi_rx_done_count;
         ++s_spi_rx_valid_frame_count;
+        XORA_LOG_CALL(++g_game_log_received);
         spi_rx_commit_latest_payload(payload);
     }
     SYS_RecoverIrq(lock);
@@ -842,13 +845,13 @@ void GPIOA_IRQHandler(void)
     if(flags & (uint16_t)~RFM_BOARD_SPI_NSS_PIN)
         GPIOA_ClearITFlagBit(flags & (uint16_t)~RFM_BOARD_SPI_NSS_PIN);
     if(flags & RFM_BOARD_SPI_NSS_PIN) {
-        const uint32_t now=SysTick->CNT;
+        const uint32_t now=XORA_DIAGNOSTICS_ENABLED && s_measure_nss ? SysTick->CNT : 0u;
         GPIOA_ClearITFlagBit(RFM_BOARD_SPI_NSS_PIN);
         if(s_spi_tx_pending || s_sleep_rx_quiesced)return;
         const uint32_t end=spi_rx_dma_produced(), start=s_nss_rx_total;
         s_nss_rx_total=end;
         const uint32_t n=end-start;
-        if(s_measure_nss)s_measure_diag|=2u;
+        if(XORA_DIAGNOSTICS_ENABLED && s_measure_nss)s_measure_diag|=2u;
         if(n==14u || n==38u) {
             uint8_t frame[14],sum=0;
             for(unsigned i=0;i<sizeof(frame);++i)
@@ -859,7 +862,7 @@ void GPIOA_IRQHandler(void)
                frame[2]!=RFM_RF_INPUT_PAYLOAD_LEN)return;
             for(unsigned i=0;i<13u;++i)sum+=frame[i];
             if(sum!=frame[13] || !spi_input_crc_valid(frame+3))return;
-            if(s_measure_nss) {
+            if(XORA_DIAGNOSTICS_ENABLED && s_measure_nss) {
                 const uint8_t seq=frame[3];
                 s_measure_tag[seq]=frame[7]>>2;
                 s_measure_event[seq]=rf_source_input_event(frame+3);
@@ -869,7 +872,7 @@ void GPIOA_IRQHandler(void)
             /* Publish input first. Sparse sidecars are only validated/copied
              * below; record matching and RF preparation stay in main. */
             spi_rx_accept_input(frame+3,start+sizeof(frame));
-            if(s_measure_nss && n==38u) {
+            if(XORA_DIAGNOSTICS_ENABLED && s_measure_nss && n==38u) {
                 uint8_t sidecar[24],check=0;
                 for(unsigned i=0;i<24;i++)sidecar[i]=s_spi_rx_dma_buf[(start+14u+i)%SPI_RX_DMA_BUF_SIZE];
                 /* Validate the copy before publishing; DMA remains active. */

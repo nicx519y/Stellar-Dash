@@ -43,6 +43,7 @@ DEFINES := \
 	$(EXTRA_DEFINES)
 
 INCLUDES := \
+	-I../../common \
 	-I$(APP_DIR)/include \
 	-I$(COMMON_INC_DIR) \
 	-I$(HAL_DIR)/include \

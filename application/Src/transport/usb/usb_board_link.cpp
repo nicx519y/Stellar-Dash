@@ -10,6 +10,7 @@
 #include "monitor_telemetry.hpp"
 #include "system_logger.h"
 #include "fault_log_api.h"
+#include "game_link_log.h"
 #include "stm32h7xx_hal.h"
 #include "usb_board_link_codec.h"
 #include "usb_board_link_port.hpp"
@@ -43,6 +44,7 @@ uint32_t usbMonitorNow() {
 // Probe the existing read-only protocol instead of interpreting a product
 // release number as a capability. Unsupported diagnostics must not fault input.
 bool consumeUsbMonitorEvent(uint8_t command,const uint8_t *payload,uint8_t length) {
+    if(!XORA_DIAGNOSTICS_ENABLED) return command==UM_BOARD_EVENT;
     if(command==USB_BOARD_EVT_FAULT && length==2u && usbMon.queryPending &&
        payload[0]==USB_BOARD_STATUS_UNSUPPORTED && payload[1]==UM_BOARD_COMMAND) {
         usbMon.unsupported=1u;usbMon.queryPending=0u;
@@ -102,7 +104,9 @@ static constexpr uint16_t kNetworkFrameBytes =
 static_assert(sizeof(MonitorPowerFrameV2) == USB_BOARD_TELEMETRY_FRAME_BYTES,
               "MPW2 must remain one complete UsbBoardLink telemetry fragment");
 static usb_board_link_network_rx_callback_t s_networkRxCallback = nullptr;
-static uint8_t s_networkRx[kNetworkFrameBytes];
+// CPU reassembly buffer; only complete, length/CRC-checked frames are exposed.
+// Keep it beside the existing link buffers, freeing AXI space for RPC code.
+__attribute__((section(".DMA_Section"), aligned(32))) static uint8_t s_networkRx[kNetworkFrameBytes];
 static uint16_t s_networkRxLength;
 static uint16_t s_networkRxExpectedLength;
 static uint16_t s_networkRxCrc;
@@ -176,6 +180,10 @@ private:
 };
 
 } // namespace
+
+extern "C" void USBBoardLink_ResetDiagnostics(void) {
+    usbMon=UsbSourceMonitor{};
+}
 
 bool UsbBoardLink::transact(uint8_t command,
                             const void *payload,
@@ -409,6 +417,7 @@ bool UsbBoardLink::selectRole(usb_board_role_t role, uint32_t timeoutMs)
     }
     usbMon=UsbSourceMonitor{};
     usbSubsystemEvidence = false;
+    memset(s_networkRx, 0, sizeof(s_networkRx));
     if (!USBBoardLinkPort_Init()) {
         return false;
     }
@@ -522,6 +531,9 @@ bool UsbBoardLink::getCapabilities()
         return false;
     }
 
+    const uint8_t diagnostics=XORA_POLICY_WIRE;
+    uint8_t policyReply[2], policySize=0, policyStatus=0;
+    (void)sendControl(USB_BOARD_CONTROL_DIAGNOSTICS,&diagnostics,1u,policyReply,2u,&policySize,&policyStatus);
     caps = response;
     capsValid =
         (caps.protocol_version == USB_BOARD_LINK_VERSION) &&
@@ -1251,6 +1263,7 @@ bool UsbBoardLink::trySendTelemetry(const uint8_t *payload, uint8_t length)
 
 void UsbBoardLink::pumpTelemetry()
 {
+    if (!XORA_DIAGNOSTICS_ENABLED) return;
     const uint32_t now = HAL_GetTick();
     if (nextTelemetryAtMs == 0u) {
         nextTelemetryAtMs = now + kTelemetryIntervalMs;
@@ -1283,7 +1296,7 @@ void UsbBoardLink::handleEvent(uint8_t command,
                                const uint8_t *payload,
                                uint8_t length)
 {
-    if(consumeUsbMonitorEvent(command,payload,length))return;
+    if(XORA_DIAGNOSTICS_ENABLED && consumeUsbMonitorEvent(command,payload,length))return;
     if ((command == USB_BOARD_EVT_USB_STATE) &&
         (length == sizeof(usbState))) {
         usb_board_usb_state_v1_t updated = {};
@@ -1327,7 +1340,9 @@ void UsbBoardLink::handleEvent(uint8_t command,
             credits[update.channel] = boundedCredits;
         }
     } else if ((command == USB_BOARD_EVT_FAULT) && (length != 0u)) {
-        XoraLog_Event(FL_EVENT_BOARD_LINK,FL_CATEGORY_LINK,FL_ERROR,payload[0]);
+        if(selectedRole==USB_BOARD_ROLE_USB)
+            XoraLog_GameFault(GL_MODE_USB,GL_BOARD_FAULT,payload[0]);
+        else XoraLog_Event(FL_EVENT_BOARD_LINK,FL_CATEGORY_LINK,FL_ERROR,payload[0]);
         if(selectedRole == USB_BOARD_ROLE_USB && length == 14u && !g_usb_input_fault[0]) {
             g_usb_input_fault[1]=HAL_GetTick();
             g_usb_input_fault[2]=payload[0]; g_usb_input_fault[3]=payload[1];
@@ -1453,8 +1468,7 @@ void UsbBoardLink::process()
             whf_commit(&s_hsLink, s_hsBlock);
     }
     flushReceiveCredits();
-    pumpMonitor();
-    pumpTelemetry();
+    if (XORA_DIAGNOSTICS_ENABLED) { pumpMonitor(); pumpTelemetry(); }
 }
 
 void UsbBoardLink::shutdown()
@@ -1585,6 +1599,7 @@ extern "C" void UsbBoardLink_Process(void)
 }
 
 void UsbBoardLink::monitorSample(uint32_t trigger,uint32_t complete) {
+    if (!XORA_DIAGNOSTICS_ENABLED) return;
     if(!(usbMon.enabled&UM_LATENCY)) {usbMon.sampleValid=0u;return;}
     usbMon.ready=DWT->CYCCNT;
     const uint32_t scale=SystemCoreClock/1000000u;
@@ -1599,6 +1614,7 @@ bool UsbBoardLink::tryMonitorSend(const uint8_t *payload,uint8_t length) {
            USBBoardLinkPort_Send(frame,size);
 }
 void UsbBoardLink::pumpMonitor() {
+    if (!XORA_DIAGNOSTICS_ENABLED) return;
     if(!capsValid || selectedRole!=USB_BOARD_ROLE_USB || selectedProfile!=USB_BOARD_PROFILE_XINPUT ||
        !isDeviceMounted() || isDeviceSuspended()) { usbMon.enabled=usbMon.baseline=0u;return; }
     const uint8_t required=USB_BOARD_CAP_FEATURE_TELEMETRY_HID|USB_BOARD_CAP_FEATURE_CONTROL_V1;

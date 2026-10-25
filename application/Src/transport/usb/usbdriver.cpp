@@ -1,5 +1,6 @@
 #include "boot_profile.h"
 #include "usbdriver.hpp"
+#include "game_link_log.h"
 #include "usb_board_link_port.hpp"
 
 #include "board_cfg.h"
@@ -332,6 +333,7 @@ void USBDriver::process()
         USB_BOARD_LINK.process();
         uint8_t dataPlaneFault = USB_BOARD_STATUS_OK;
         if (USB_BOARD_LINK.takeFastDataPlaneFault(dataPlaneFault)) {
+            XoraLog_GameFault(GL_MODE_USB,GL_RATE_FALLBACK|GL_BOARD_FAULT,dataPlaneFault);
             APP_STAGE_ERROR("U06F",
                             "FAST_INPUT_V2 runtime fault=%u; falling back to 1 kHz",
                             static_cast<unsigned int>(dataPlaneFault));

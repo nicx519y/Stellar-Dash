@@ -68,9 +68,9 @@ class WebHidCommandManifestTests(unittest.TestCase):
         names = [item["name"] for item in self.commands]
         self.assertEqual(self.manifest["version"], 1)
         self.assertEqual(self.manifest["legacyCommandCount"], 68)
-        self.assertEqual(self.manifest["commandCount"], 92)
-        self.assertEqual(len(names), 92)
-        self.assertEqual(len(set(names)), 92)
+        self.assertEqual(self.manifest["commandCount"], 96)
+        self.assertEqual(len(names), 96)
+        self.assertEqual(len(set(names)), 96)
         self.assertEqual(
             Counter(item["migration"] for item in self.commands),
             Counter(self.manifest["migrationStatusCounts"]),
@@ -82,7 +82,7 @@ class WebHidCommandManifestTests(unittest.TestCase):
     def test_manifest_matches_firmware_command_registry(self) -> None:
         source = COMMAND_REGISTRY.read_text(encoding="utf-8")
         registered = set(re.findall(r'registerHandler\("([^"]+)"', source))
-        self.assertEqual(len(registered), 91)
+        self.assertEqual(len(registered), 95)
         self.assertEqual(set(self.by_name) - {"ping"}, registered)
 
     def test_config_manifest_is_registered_as_read_only(self) -> None:

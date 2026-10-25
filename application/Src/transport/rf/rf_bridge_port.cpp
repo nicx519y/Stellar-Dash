@@ -1,3 +1,4 @@
+#include "diagnostics_policy.h"
 #include "rf_bridge_port.hpp"
 #include "ch585_handshake.h"
 
@@ -276,7 +277,7 @@ static bool rf_spi_dma_start_locked(const uint8_t* tx, uint16_t txLen) {
         __disable_irq();
         s_dma_busy = false;
         __enable_irq();
-        s_diag_dma_start_fail++;
+        XORA_DIAGNOSTIC_CALL(s_diag_dma_start_fail++);
         return false;
     }
     __HAL_DMA_DISABLE_IT(&s_rf_dma_tx, DMA_IT_HT);
@@ -335,7 +336,7 @@ static bool rf_spi_dma_enqueue_latest(const uint8_t* tx, uint16_t txLen, uint8_t
     if (!s_dma_busy) {
         s_dma_busy = true;
         if (s_dma_pending) {
-            s_diag_dma_overwrite++;
+            XORA_DIAGNOSTIC_CALL(s_diag_dma_overwrite++);
         }
         s_dma_pending = false;
         s_dma_pending_len = 0u;
@@ -350,7 +351,7 @@ static bool rf_spi_dma_enqueue_latest(const uint8_t* tx, uint16_t txLen, uint8_t
     }
 
     if (s_dma_pending) {
-        s_diag_dma_overwrite++;
+        XORA_DIAGNOSTIC_CALL(s_diag_dma_overwrite++);
     }
     memcpy(s_dma_pending_buf, tx, txLen);
     s_dma_pending_len = txLen;
@@ -424,7 +425,7 @@ static bool rf_read_event_frame(uint8_t* rx, uint16_t* rxLen, uint8_t diagCmd, b
                                     1u,
                                     RF_BRIDGE_SPI_TIMEOUT_MS) != HAL_OK) {
             rf_cs_set(true);
-            s_diag_rx_io_fail++;
+            XORA_DIAGNOSTIC_CALL(s_diag_rx_io_fail++);
             *rxLen = 0u;
             return false;
         }
@@ -439,7 +440,7 @@ static bool rf_read_event_frame(uint8_t* rx, uint16_t* rxLen, uint8_t diagCmd, b
                     if ((total < kMinFrameLen) || (total > *rxLen) ||
                         ((i + total) > sizeof(raw))) {
                         rf_cs_set(true);
-                        s_diag_rx_invalid++;
+                        XORA_DIAGNOSTIC_CALL(s_diag_rx_invalid++);
                         *rxLen = 0u;
                         printf("[RF_PORT][READ_EVT_RAW] bad_len start=%u payload=%u total=%u cap=%u raw=%02X %02X %02X %02X %02X %02X %02X %02X\r\n",
                                (unsigned int)i,
@@ -486,7 +487,7 @@ static bool rf_read_event_frame(uint8_t* rx, uint16_t* rxLen, uint8_t diagCmd, b
 
     read.finish();
     if (!foundStart || (rawLen < static_cast<uint16_t>(start + total))) {
-        s_diag_rx_invalid++;
+        XORA_DIAGNOSTIC_CALL(s_diag_rx_invalid++);
         *rxLen = 0u;
         printf("[RF_PORT][READ_EVT_RAW] invalid raw=%02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X\r\n",
                (unsigned int)raw[0],
@@ -510,7 +511,7 @@ static bool rf_read_event_frame(uint8_t* rx, uint16_t* rxLen, uint8_t diagCmd, b
 
     memcpy(rx, &raw[start], total);
     if (rf_checksum8(rx, static_cast<uint16_t>(total - 1u)) != rx[total - 1u]) {
-        s_diag_rx_invalid++;
+        XORA_DIAGNOSTIC_CALL(s_diag_rx_invalid++);
         *rxLen = 0u;
         printf("[RF_PORT][READ_EVT_RAW] bad_sum start=%u total=%u got=%02X calc=%02X head=%02X %02X %02X %02X %02X %02X %02X %02X\r\n",
                (unsigned int)start,
@@ -878,17 +879,17 @@ void RFBridgePort_Shutdown(void) {
 }
 
 extern "C" void RFBridgePort_DMA_IRQHandler(void) {
-    s_diag_dma_irq++;
+    XORA_DIAGNOSTIC_CALL(s_diag_dma_irq++);
     HAL_DMA_IRQHandler(&s_rf_dma_tx);
 }
 
 extern "C" void RFBridgePort_SPI_IRQHandler(void) {
-    s_diag_spi_irq++;
+    XORA_DIAGNOSTIC_CALL(s_diag_spi_irq++);
     HAL_SPI_IRQHandler(&s_rf_hspi);
 }
 
 extern "C" void RFBridgePort_IRQ_IRQHandler(void) {
-    s_diag_exti_irq++;
+    XORA_DIAGNOSTIC_CALL(s_diag_exti_irq++);
     if (s_irq_event_pending < RF_BRIDGE_EVENT_DRAIN_LIMIT) {
         s_irq_event_pending++;
     }
@@ -900,7 +901,7 @@ extern "C" void RFBridgePort_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi) {
     }
 
     rf_cs_set(true);
-    s_diag_dma_done++;
+    XORA_DIAGNOSTIC_CALL(s_diag_dma_done++);
 
     if (!rf_spi_dma_start_pending_from_isr()) {
         __disable_irq();
@@ -914,7 +915,7 @@ extern "C" void RFBridgePort_SPI_ErrorCallback(SPI_HandleTypeDef *hspi) {
         return;
     }
     rf_cs_set(true);
-    s_diag_spi_err++;
+    XORA_DIAGNOSTIC_CALL(s_diag_spi_err++);
     __disable_irq();
     s_dma_busy = false;
     s_dma_pending = false;
@@ -997,7 +998,7 @@ bool RFBridgePort_SendInputLatest(const uint8_t* tx, uint16_t txLen) {
     }
 
     if (!rf_spi_init_once()) {
-        s_diag_spi_init_fail++;
+        XORA_DIAGNOSTIC_CALL(s_diag_spi_init_fail++);
         return false;
     }
 
@@ -1022,33 +1023,33 @@ bool RFBridgePort_SendInputLatest(const uint8_t* tx, uint16_t txLen) {
     if (s_dma_busy) {
         return false;
     }
-    s_input_start_cycles=MICROS_TIMER.cycles();
+    XORA_DIAGNOSTIC_CALL(s_input_start_cycles=MICROS_TIMER.cycles());
     rf_cs_set(false);
     const HAL_StatusTypeDef tx_st = HAL_SPI_Transmit(&s_rf_hspi,
                                                      const_cast<uint8_t*>(tx),
                                                      txLen,
                                                      RF_BRIDGE_SPI_TIMEOUT_MS);
     rf_cs_set(true);
-    s_input_end_cycles=MICROS_TIMER.cycles();
+    XORA_DIAGNOSTIC_CALL(s_input_end_cycles=MICROS_TIMER.cycles());
     tx_ok = (tx_st == HAL_OK);
 #endif
 
     if (!tx_ok) {
-        s_diag_tx_fail++;
-        rf_note_transfer(true, false, cmd, txLen, input_seq);
+        XORA_DIAGNOSTIC_CALL(s_diag_tx_fail++);
+        XORA_DIAGNOSTIC_CALL(rf_note_transfer(true, false, cmd, txLen, input_seq));
         return false;
     }
 
 #if !RF_BRIDGE_INPUT_DMA_FASTPATH
-    s_diag_input_blocking_done++;
+    XORA_DIAGNOSTIC_CALL(s_diag_input_blocking_done++);
 #endif
-    rf_note_transfer(true, true, cmd, txLen, input_seq);
+    XORA_DIAGNOSTIC_CALL(rf_note_transfer(true, true, cmd, txLen, input_seq));
     return true;
 }
 
 bool RFBridgePort_PrepareWakeLineIdle(void) {
     if (!rf_spi_init_once()) {
-        s_diag_spi_init_fail++;
+        XORA_DIAGNOSTIC_CALL(s_diag_spi_init_fail++);
         return false;
     }
 
@@ -1059,7 +1060,7 @@ bool RFBridgePort_PrepareWakeLineIdle(void) {
 
 bool RFBridgePort_WakePulse(void) {
     if (!rf_spi_init_once()) {
-        s_diag_spi_init_fail++;
+        XORA_DIAGNOSTIC_CALL(s_diag_spi_init_fail++);
         return false;
     }
 
@@ -1097,7 +1098,7 @@ static bool rf_control_transfer_with_timeout(const uint8_t* tx,
     }
 
     if (!rf_spi_init_once()) {
-        s_diag_spi_init_fail++;
+        XORA_DIAGNOSTIC_CALL(s_diag_spi_init_fail++);
         *rxLen = 0u;
         return false;
     }
@@ -1164,20 +1165,20 @@ static bool rf_control_transfer_with_timeout(const uint8_t* tx,
             ? rf_spi_dma_transmit_blocking(busTx, busTxLen, RF_BRIDGE_SPI_TIMEOUT_MS)
             : rf_spi_transmit_polling(busTx, busTxLen, RF_BRIDGE_SPI_TIMEOUT_MS);
     if (!tx_ok) {
-        s_diag_tx_fail++;
-        rf_note_transfer(false, false, cmd, busTxLen, 0u);
+        XORA_DIAGNOSTIC_CALL(s_diag_tx_fail++);
+        XORA_DIAGNOSTIC_CALL(rf_note_transfer(false, false, cmd, busTxLen, 0u));
         *rxLen = 0u;
         return false;
     }
 
-    rf_note_transfer(false, true, cmd, busTxLen, 0u);
+    XORA_DIAGNOSTIC_CALL(rf_note_transfer(false, true, cmd, busTxLen, 0u));
     if (!allowEventPreempt) {
         HAL_Delay(1u);
     }
 
     const bool irq_ready = rf_wait_irq_asserted(ackTimeoutMs);
     if (!irq_ready) {
-        s_diag_irq_timeout++;
+        XORA_DIAGNOSTIC_CALL(s_diag_irq_timeout++);
         *rxLen = 0u;
         return false;
     }
@@ -1210,13 +1211,30 @@ bool RFBridgePort_ControlTransfer(const uint8_t* tx, uint16_t txLen, uint8_t* rx
     return RFBridgePort_ControlTransferWithTimeout(tx, txLen, rx, rxLen, 20u);
 }
 
+bool RFBridgePort_SendBackground(const uint8_t* tx, uint16_t txLen) {
+    if (!tx || !txLen || txLen > sizeof(s_dma_active_buf) || !rf_dma_init_once()) return false;
+    const uint32_t mask = __get_PRIMASK();
+    __disable_irq();
+    if (s_dma_busy || s_dma_pending || rf_has_pending_event_signal()) {
+        if (!mask) __enable_irq();
+        return false;
+    }
+    s_dma_busy = true;
+    if (!mask) __enable_irq();
+    const bool ok = rf_spi_dma_start_locked(tx, txLen);
+    if (!ok) {
+        __disable_irq(); s_dma_busy = false; if (!mask) __enable_irq();
+    }
+    return ok;
+}
+
 bool RFBridgePort_SendNoResponse(const uint8_t* tx, uint16_t txLen) {
     if ((tx == nullptr) || (txLen == 0u)) {
         return false;
     }
 
     if (!rf_spi_init_once()) {
-        s_diag_spi_init_fail++;
+        XORA_DIAGNOSTIC_CALL(s_diag_spi_init_fail++);
         return false;
     }
 
@@ -1241,15 +1259,15 @@ bool RFBridgePort_SendNoResponse(const uint8_t* tx, uint16_t txLen) {
 
     const bool txOk = rf_spi_dma_transmit_blocking(busTx, busTxLen, RF_BRIDGE_SPI_TIMEOUT_MS);
     if (!txOk) {
-        s_diag_tx_fail++;
-        rf_note_transfer(false, false, cmd, busTxLen, 0u);
+        XORA_DIAGNOSTIC_CALL(s_diag_tx_fail++);
+        XORA_DIAGNOSTIC_CALL(rf_note_transfer(false, false, cmd, busTxLen, 0u));
         printf("[RF_PORT][NO_RESP] cmd=0x%02X ok=0 len=%u\r\n",
                (unsigned int)cmd,
                (unsigned int)busTxLen);
         return false;
     }
 
-    rf_note_transfer(false, true, cmd, busTxLen, 0u);
+    XORA_DIAGNOSTIC_CALL(rf_note_transfer(false, true, cmd, busTxLen, 0u));
     printf("[RF_PORT][NO_RESP] cmd=0x%02X ok=1 len=%u\r\n",
            (unsigned int)cmd,
            (unsigned int)busTxLen);

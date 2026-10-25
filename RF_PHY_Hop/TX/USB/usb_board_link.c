@@ -1,5 +1,6 @@
 #include "usb_board_link.h"
 #include "fault_log_api.h"
+#include "game_link_log.h"
 
 #include <string.h>
 #include "release_build_identity.h"
@@ -82,7 +83,8 @@ static bool queue_event(uint8_t command, const void *payload, uint8_t length)
            usb_board_link_port_queue_event(frame, frame_length);
 }
 
-static bool queue_fault(uint8_t fault, uint8_t command)
+/* Keep the cold error formatter out of the SRAM input dispatcher. */
+static __attribute__((noinline)) bool queue_fault(uint8_t fault, uint8_t command)
 {
     uint8_t payload[14];
     uint8_t length = 2u;
@@ -96,7 +98,10 @@ static bool queue_fault(uint8_t fault, uint8_t command)
             length=sizeof(payload);
         }
     }
-    if(s_last_fault != fault) XoraLog_Event(FL_EVENT_BOARD_LINK,FL_CATEGORY_LINK,FL_ERROR,fault);
+    if(s_last_fault != fault) {
+        XoraLog_Event(FL_EVENT_BOARD_LINK,FL_CATEGORY_LINK,FL_ERROR,fault);
+    }
+    if(s_role==USB_BOARD_ROLE_USB) XoraLog_GameFault(GL_MODE_USB,GL_BOARD_FAULT,fault);
     s_last_fault = fault;
     usb_high_rate_note_board_link_fault();
     return queue_event(USB_BOARD_EVT_FAULT, payload, length);

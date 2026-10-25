@@ -78,7 +78,7 @@ static inline LogResult Logger_LogDelay(LogLevel level, const char* component, c
     return LOG_RESULT_SUCCESS;
 }
 
-void XoraLog_RequestFlush(void) __attribute__((weak));
+void (XoraLog_RequestFlush)(void) __attribute__((weak));
 static inline LogResult Logger_Flush(void) {
     if (XoraLog_RequestFlush) XoraLog_RequestFlush();
     return LOG_RESULT_SUCCESS;

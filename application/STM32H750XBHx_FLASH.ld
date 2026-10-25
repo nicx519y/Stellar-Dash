@@ -115,14 +115,17 @@ SECTIONS
     *spi_screen_detail_pages.o(.text._Z22ScreenDetail_OnConfirm*)
     /* CPU-only list rendering uses ITCM freed by placing UI constants in DTCM. */
     *spi_screen_detail_render_helpers.o(.text._Z23ScreenDetailRender_List*)
-    *fault_log_command.o(.text .text.* .rodata .rodata.*)
+    *fault_log_command.o(.text .text.*)
     *common_command_handler.o(.text .text.* .rodata .rodata.*)
     *tx_isp_state.o(.text .text.* .rodata .rodata.*)
-    *spi_screen_detail_tx_isp.o(.text .text.* .rodata .rodata.*)
+    *spi_screen_detail_tx_isp.o(.text .text.*)
     /* Shared LCD drawing helpers are CPU-only. Use spare ITCM for their code;
        their constants use DTCM below. Framebuffer/DMA data stay in place.
        Include them in the existing g_pfnVectors.._evector startup copy span. */
     *spi_screen_ui_common.o(.text .text.*)
+    /* New power-budget policy is CPU-only and uses the remaining ITCM span.
+       It is copied by the same startup path; outputs/DMA data stay in place. */
+    *power_manager.o(.text._ZN15PowerLoadPolicy*)
     . = ALIGN(4);
     _evector = .;           /* 添加向量表结束标记 */
   } >ITCMRAM AT>FLASH
@@ -147,6 +150,13 @@ SECTIONS
     *battery_test.o(.rodata .rodata.*)
     *spi_screen_detail_pages.o(.rodata .rodata.*)
     *spi_screen_ui_common.o(.rodata .rodata.*)
+    /* Screen labels, palettes and lookup tables are read by the CPU, never
+       DMA. Reuse this startup copy to leave AXI room for SOC/telemetry. */
+    *spi_screen*.o(.rodata .rodata.*)
+    /* Log command labels/JSON keys are CPU-only too; retain the existing
+       ITCM code reserve while keeping these strings available without QSPI. */
+    *fault_log_command.o(.rodata .rodata.*)
+    *power_manager.o(.rodata .rodata.*) /* CPU-only SOC lookup table */
     . = ALIGN(4);
     _eui_rodata = .;
   } >DTCMRAM AT>FLASH

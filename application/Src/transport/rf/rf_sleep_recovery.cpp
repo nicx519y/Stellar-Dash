@@ -6,12 +6,15 @@
 #include "connection_manager.hpp"
 #include "sleep_diagnostics.hpp"
 #include "stm32h7xx_hal.h"
+#include "game_link_log.h"
 
 bool RfSleepRecovery::park() {
     CONNECTION_MANAGER.onRfPowerRemovedForSleep(); // block every regular producer/poller first
     // A failed stop keeps the supply on. Retry cleanup later, never cut power
     // with an unconfirmed SPI/DMA owner or a driven bootstrap port.
     if (!USBBoardLinkPort_TryShutdown() || !RFBridgePort_TryShutdownForSleep()) return false;
+    // Recovery owns transport only. Logging must never stop local ADC or
+    // delay a retry; retained evidence is drained at boot/maintenance.
     USB_BOARD_LINK.shutdown();
     CONNECTION_MANAGER.resetRfSleepSession();
     transport_.resetSession();
@@ -48,7 +51,7 @@ void RfSleepRecovery::beginAfterRole(uint16_t rate, uint8_t maxAttempts) {
 
 void RfSleepRecovery::startAttempt() {
     if (attempts_ < 255u) ++attempts_;
-    ++g_sleepDiagnostics.radioAttempts;
+    XORA_DIAGNOSTIC_CALL(++g_sleepDiagnostics.radioAttempts);
     if (!park()) { fail(RfSleepError::PortStop, HAL_GetTick()); return; }
     fallback_ = requestSent_ = verified_ = neutralSent_ = false;
     rate_ = requested_;
@@ -63,13 +66,16 @@ void RfSleepRecovery::startAttempt() {
 void RfSleepRecovery::configure(uint32_t now) {
     RFCommandTransaction::beginScheduled(window_, now);
     requestSent_ = verified_ = neutralSent_ = false;
-    state_ = RfSleepState::ConfigureRate;
+    state_ = XORA_POLICY_FLAGS ? RfSleepState::ConfigureDiagnostics : RfSleepState::ConfigureRate;
     SleepDiagnostics_Record(SleepStage::RadioConfigure);
 }
 
 void RfSleepRecovery::fail(RfSleepError error, uint32_t now) {
     // Even if cleanup fails, ownership stays here and normal input cannot
     // touch SPI. Local input/render/lighting remain entirely independent.
+    XoraLog_GameFault(GL_MODE_RF, GL_RECOVERY_FAILED |
+        (maxAttempts_ && attempts_ >= maxAttempts_ ? GL_CONFIRMED_DISCONNECT : 0u),
+        static_cast<uint32_t>(error));
     if (!park()) error = RfSleepError::PortStop;
     state_ = maxAttempts_ && attempts_ >= maxAttempts_
         ? RfSleepState::Failed : RfSleepState::RetryWait;
@@ -134,8 +140,8 @@ void RfSleepRecovery::service(uint32_t now) {
     const auto receive = RFBridgePort_RecoveryRead(frame, &length, now);
     if (receive == RFPortStep::Error) { fail(RfSleepError::Receive, now); return; }
     if (receive == RFPortStep::Complete) {
-        g_sleepDiagnostics.lastRadioFrameEvent = length > 1u ? frame[1] : 0u;
-        g_sleepDiagnostics.lastRadioFramePayloadBytes = length > 2u ? frame[2] : 0u;
+        XORA_DIAGNOSTIC_CALL(g_sleepDiagnostics.lastRadioFrameEvent = length > 1u ? frame[1] : 0u;
+            g_sleepDiagnostics.lastRadioFramePayloadBytes = length > 2u ? frame[2] : 0u);
         if (!transport_.acceptRecoveryFrame(frame, length)) { fail(RfSleepError::FrameRejected, now); return; }
         const auto& status = transport_.getStatus();
         if (state_ == RfSleepState::VerifyStatus && requestSent_ &&
@@ -145,6 +151,15 @@ void RfSleepRecovery::service(uint32_t now) {
                         status.lastResult == 0u && status.rateHz == rate_;
             if (verified_) SleepDiagnostics_Record(SleepStage::RadioVerify);
         }
+    }
+    if (state_ == RfSleepState::ConfigureDiagnostics) {
+        const uint8_t enabled = XORA_POLICY_WIRE;
+        RFCommandTransaction::stepScheduled(window_, XORA_DIAGNOSTICS_SPI_CMD, &enabled, 1u, now);
+        if (now - window_.started < 100u) return;
+        if (!window_.sent) { fail(RfSleepError::RateSend, now); return; }
+        RFCommandTransaction::beginScheduled(window_, now);
+        state_ = RfSleepState::ConfigureRate;
+        return;
     }
     if (state_ == RfSleepState::ConfigureRate) {
         const uint8_t args[] = {static_cast<uint8_t>(rate_), static_cast<uint8_t>(rate_ >> 8)};

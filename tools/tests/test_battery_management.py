@@ -86,6 +86,11 @@ int main() {
 struct ST7789_Handle {};
 constexpr unsigned SPI_SCREEN_BATTERY_BODY_H=14;
 bool g_battUiLowBattery=false, g_battUiFastCharging=false;
+uint16_t g_battUiCellMv=0;
+bool (*BatteryTest_Active)()=nullptr;
+bool (*BatteryTest_IsCharge)()=nullptr;
+constexpr unsigned SCREEN_FONT_SMALL=1;
+unsigned ScreenUI_CharCellH(unsigned) { return 12; }
 uint8_t g_battUiSoc=50;
 uint32_t g_battUiChargeAnimStartMs=0;
 uint32_t g_battUiLastSampleMs=0;
@@ -97,7 +102,7 @@ struct FakePower { PowerSnapshot sample; PowerSnapshot getSnapshot() { return sa
 unsigned textCalls=0, fill=0, borders=0;
 void ST7789_DrawRect(ST7789_Handle*,unsigned,unsigned,unsigned,unsigned,unsigned) { ++borders; }
 void ST7789_FillRect(ST7789_Handle*,unsigned,unsigned,unsigned width,unsigned,unsigned color) { if(color) fill=width; }
-void ScreenUI_DrawStringCenteredInBox(ST7789_Handle*,unsigned,unsigned,unsigned,unsigned,const char*,unsigned,unsigned,unsigned) { ++textCalls; }
+void ScreenUI_DrawStringCenteredInBox(ST7789_Handle*,unsigned x,unsigned y,unsigned w,unsigned h,const char*,unsigned,unsigned,unsigned) { assert(x+w<=36 && y+h<=172); ++textCalls; }
 '''
         harness += function(source, "static void update_battery_ui_cache(")
         harness += function(source, "static uint8_t battery_animated_soc(")
@@ -108,7 +113,7 @@ int main() {
     const auto render=[&](uint32_t now) {
         fill=borders=textCalls=0;
         render_left_battery_icon(&lcd,36,140,1,0,now);
-        assert(textCalls==0); // All sidebar battery states are icon-only.
+        assert(textCalls==0);
     };
     render(0); assert(fill==11);
     g_battUiQuality=PowerDataQuality::Unknown; render(0); assert(fill==0);
@@ -122,12 +127,18 @@ int main() {
     g_battUiQuality=PowerDataQuality::Stale; render(500); assert(fill==11);
     g_battUiLowBattery=true; render(700); assert(borders==0);
     render(1100); assert(borders==2);
+    g_battUiQuality=PowerDataQuality::Fresh;
+    render(1100); assert(textCalls==0);
     fakePower.sample.soc_permille=420;
     fakePower.sample.data_quality=PowerDataQuality::Fresh;
     update_battery_ui_cache(2000); assert(g_battUiSoc==42);
     fakePower.sample.data_quality=PowerDataQuality::Unknown;
     update_battery_ui_cache(2001); render(2001);
     assert(g_battUiQuality==PowerDataQuality::Unknown && fill==0); // validity expiry must bypass the one-second UI cache
+    g_battUiQuality=PowerDataQuality::Fresh;
+    BatteryTest_Active=+[](){return true;};
+    textCalls=0; render_left_battery_icon(&lcd,36,141,1,0,2100);
+    assert(textCalls==1); // Only test voltage is drawn; it fits within the actual 172px screen.
 }
 '''
         with tempfile.TemporaryDirectory(prefix="xora-battery-icon-") as folder:
@@ -211,6 +222,14 @@ int main() {
                         "-I", str(temp), "-I", str(ROOT / "common"), *application_include_flags(),
                         str(ROOT / "tools/tests/battery_manager_test.cpp"), "-o", str(exe)],
                        check=True)
+            run_native([str(exe)], check=True)
+
+    def test_external_supply_load_policy(self):
+        with tempfile.TemporaryDirectory(prefix="xora-power-load-") as folder:
+            exe = Path(folder) / "load.exe"
+            run_native([shutil.which("g++"), "-std=c++17", "-Wall", "-Wextra", "-Werror",
+                        *application_include_flags(),
+                        str(ROOT / "tools/tests/power_load_policy_test.cpp"), "-o", str(exe)], check=True)
             run_native([str(exe)], check=True)
 
 

@@ -79,6 +79,23 @@ function isPowerStatus(ev: MonitorEvent): ev is PowerStatusEvent {
   return ev.kind === "power_status";
 }
 
+// A repeated snapshot is not a fresh measurement. Retain firmware authority
+// even after it expires, until the connection/session is explicitly reset.
+function mergePower(previous: PowerStatusEvent | null | undefined, next: PowerStatusEvent): PowerStatusEvent {
+  if (!previous || previous.session !== next.session || previous.deviceId !== next.deviceId || previous.deviceGeneration !== next.deviceGeneration) return next;
+  if (previous.powerOrigin === "firmware" && next.powerOrigin === "voltage") return previous;
+  if (previous.sampleUptimeMs !== undefined && next.sampleUptimeMs !== undefined) {
+    const elapsed=(next.sampleUptimeMs-previous.sampleUptimeMs)>>>0;
+    if (elapsed===0) return next.valid ? previous : {...previous,valid:false};
+    if (elapsed>=0x80000000) return previous;
+    if (previous.sampleSequence!==undefined && next.sampleSequence!==undefined) {
+      const delta=(next.sampleSequence-previous.sampleSequence)&0xffff;
+      if (delta===0 || delta>=0x8000) return previous;
+    }
+  }
+  return next;
+}
+
 function calcRateFromPackets(packets: PacketRow[], channel: "USB" | "RF", direction: "TX" | "RX", windowMs: number) {
   const t = nowMs();
   const measuredWindowMs = Math.max(windowMs, 6500);
@@ -233,12 +250,12 @@ export class MonitorStreamProcessor {
       const key=event.deviceId??"legacy-usb";
       let current=this.usb[key]??{statistics:null,status:null,rates:[],latency:{items:[],status:null}};
       if(event.session!==undefined && current.session!==event.session) {
-        current={...current,session:event.session,statistics:null,rates:[],latency:{items:[],status:null}};
+        current={...current,session:event.session,statistics:null,powerStatus:null,rates:[],latency:{items:[],status:null}};
       }
-      if(event.kind==="power_status")current={...current,powerStatus:event};
+      if(event.kind==="power_status")current={...current,powerStatus:mergePower(current.powerStatus,event)};
       if(event.kind==="usb_statistics") {
         current={...current,statistics:event,rates:appendTrim(current.rates,event.rateHz===null?[]:[{tMs:event.timestampMs,hz:event.rateHz}],500)};
-      } else if(event.kind==="device_status")current={...current,status:event};
+      } else if(event.kind==="device_status")current={...current,status:event,...(event.state!=="Connected"?{powerStatus:null}:{})};
       else if(event.kind==="button_latency") {
         const old=current.latency.items;
         const found=old.some(r=>r.traceId===event.traceId);
@@ -282,9 +299,10 @@ export class MonitorStreamProcessor {
       this.buttonLatencyStatus = latestButtonLatencyStatus;
     }
 
-    const latestPowerStatus = batch.filter(isPowerStatus).at(-1);
-    if (latestPowerStatus) {
-      this.powerStatus = latestPowerStatus;
+    for (const event of batch) {
+      if (event.kind==="device_status" && (event.state!=="Connected" ||
+          (this.powerStatus && (event.session!==this.powerStatus.session || event.deviceId!==this.powerStatus.deviceId || event.deviceGeneration!==this.powerStatus.deviceGeneration)))) this.powerStatus=null;
+      if (isPowerStatus(event)) this.powerStatus=mergePower(this.powerStatus,event);
     }
 
     const rfPackets = rfPacketEvents(batch);

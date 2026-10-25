@@ -1,3 +1,4 @@
+import { parseDiagnosticsPolicy } from "@/lib/diagnostics-policy";
 import { FaultLogQuery, LogSource, parseFaultLogPage } from "@/lib/device-fault-logs";
 import {
     DeviceCommandClient,
@@ -163,6 +164,9 @@ export function useSessionActions(dependencies: SessionActionsDependencies) {
         return cloneConfig(dependencies.configStoreRef.current.get<MacroConfig[]>(`macros:${profileId}`) ?? []);
     }, []);
 
+    const diagnosticsPolicy = async (enabled?: import("@/lib/diagnostics-policy").DiagnosticsSettings) => parseDiagnosticsPolicy(await sendDeviceRequest(
+        enabled === undefined ? 'get_diagnostics_policy' : 'set_diagnostics_policy',
+        enabled === undefined ? {} : enabled, true));
     const fetchDeviceLogsPage = async (query: FaultLogQuery) => parseFaultLogPage(
         await sendDeviceRequest("get_device_logs_page", { ...query }, true), query.source);
     const clearDeviceLogs = async (source: LogSource) => {
@@ -304,7 +308,7 @@ export function useSessionActions(dependencies: SessionActionsDependencies) {
     return {
         setContextJsReady, connectDevice, reconnectDevice, disconnectDevice, getDeviceImageCatalog,
         readDeviceImage, uploadDeviceImage, deleteDeviceImage, rfBindingRequest, runRfBindingOperation,
-        sendDeviceRequest, getProfileMacros, fetchDeviceLogsList, fetchDeviceLogsPage, clearDeviceLogs, sendInitializationDeviceRequest,
+        sendDeviceRequest, diagnosticsPolicy, getProfileMacros, fetchDeviceLogsList, fetchDeviceLogsPage, clearDeviceLogs, sendInitializationDeviceRequest,
         getHitboxLayout, rebootSystem, exitWebConfig, sendPendingCommandImmediately, flushQueue,
         getDeviceTransportConfig, updateDeviceTransportConfig,
         indexMapToGameControllerButtonOrCombination,

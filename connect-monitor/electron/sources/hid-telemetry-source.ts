@@ -212,6 +212,7 @@ function parseStatusReport(raw: Uint8Array): DeviceConfigStatus | null {
     flags: getU32LE(data, 8),
     txAppliedSeq: data[15],
     telemetryLeaseSupported: (data[16] & CAP_HID_TELEMETRY_LEASE) !== 0,
+    diagnosticsAllowed: (data[16] & 0x02) !== 0 ? (data[16] & 0x04) !== 0 : undefined,
   };
 }
 
@@ -224,6 +225,13 @@ async function refreshDebugStatus(handle: any): Promise<DeviceConfigStatus | nul
     if (parsed) {
       diagnostics.record("rf-status", { requestedSeq: requestedControlSeq, ...parsed });
       telemetryLeaseSupport.set(handle, parsed.telemetryLeaseSupported === true);
+      if (parsed.diagnosticsAllowed === false) {
+        currentHidTelemetryEnabled = currentLatencyEnabled = false;
+        preferredControlHandle = null;
+        debugStatus = { ...parsed, state: "Idle", rxStatus: "Idle", txStatus: "Idle",
+          message: "设备已关闭诊断监控采集；请在 Device Logs 开启后重新连接采集" };
+        return parsed;
+      }
       // GET_REPORT can still describe the previous SET_REPORT. A successful
       // USB write is not proof that this RX/TX configuration was applied.
       if (parsed.lastSeq === requestedControlSeq) {
@@ -364,6 +372,7 @@ async function applyDebugConfig(config: DebugConfig): Promise<DebugConfigStatus>
   for (const handle of handles) {
     if (config.hidTelemetryEnabled) {
       const capability = await refreshDebugStatus(handle);
+      if (capability?.diagnosticsAllowed === false) return debugStatus;
       if (!capability?.telemetryLeaseSupported) continue;
     }
     if (!await writeControlFrame(handle, frame)) {
@@ -538,7 +547,7 @@ export function startHidTelemetrySource(publish: PublishFn, options: SourceOptio
             if (appEvents.length > 0 && !isRf) {
               if(identity.sourceMode!=="USB") {identity.sourceMode="USB";announceDevices();}
               if(handle!==selectedHandle("USB"))return;
-              for (const ev of appEvents) publish({...ev,sourceMode:"USB",deviceId:peer.id});
+              for (const ev of appEvents) publish({...ev,sourceMode:"USB",deviceId:peer.id,deviceGeneration:identity.generation});
               return;
             }
             const dongleEvents = isUsb?[]:parseDongleHidTelemetryFrame(buf, Date.now(), hostMonoUs);
@@ -639,10 +648,16 @@ export function startHidTelemetrySource(publish: PublishFn, options: SourceOptio
   let maintenancePending = false;
   const maintenanceTimer = setInterval(() => {
     if (stopped || maintenancePending) return;
+    if (debugStatus.diagnosticsAllowed === false) {
+      publish({kind:"device_status",timestampMs:Date.now(),mode:"RF24G",sourceMode:"RF24G",
+        deviceId:identities.get(selectedHandle("RF24G"))?.id,state:"Connected",
+        targetRateHz:0,actualRateHz:0,rateValid:false,statusLabel:"设备诊断监控已关闭"});
+      return;
+    }
     maintenancePending = true;
     void queueControl(async () => {
     if (stopped) return;
-    if (!desiredConfig) return;
+    if (!desiredConfig || debugStatus.diagnosticsAllowed === false) return;
     const handle = selectedHandle("RF24G");
     if (!handle) return;
     const now = Date.now();
@@ -655,7 +670,7 @@ export function startHidTelemetrySource(publish: PublishFn, options: SourceOptio
     if (now - lastStatusCheckAt < CONTROL_RETRY_INTERVAL_MS) return;
     lastStatusCheckAt = now;
     const status = await refreshDebugStatus(handle);
-    if (stopped || !liveHandle(handle)) return;
+    if (stopped || !liveHandle(handle) || status?.diagnosticsAllowed === false) return;
     // Re-enable an expired RX-only telemetry lease without resending the
     // unchanged TX configuration over RF.
     const telemetryOnlyExpired = desiredConfig.hidTelemetryEnabled && status?.telemetryLeaseSupported &&

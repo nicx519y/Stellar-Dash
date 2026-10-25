@@ -245,6 +245,7 @@ export interface GamepadConfigContextType {
     ) => { [key: number]: GameControllerButton | string };
     // 设备日志相关（服务端固定返回最近50条）
     fetchDeviceLogsList: () => Promise<string[]>;
+    diagnosticsPolicy: (enabled?: import("@/lib/diagnostics-policy").DiagnosticsSettings) => Promise<import("@/lib/diagnostics-policy").DiagnosticsPolicy>;
     fetchDeviceLogsPage: FaultLogFetcher;
     clearDeviceLogs: (source: LogSource) => Promise<void>;
 

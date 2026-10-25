@@ -1,5 +1,6 @@
 #include "rf_link_clock.h"
 #include "rfm_spi_bridge.h"
+#include "diagnostics_policy.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -13,6 +14,7 @@
 #include "rfm_spi_port_internal.h"
 #include "rfm_spi_reliable_event.h"
 #include "rf_monitor_control.h"
+#include "power_soc_telemetry.h"
 
 static uint32_t s_rx_count;
 static uint32_t s_tx_count;
@@ -88,6 +90,7 @@ typedef enum {
     SPI_CMD_UNBIND = 0x04,
     SPI_CMD_SET_RATE = 0x05,
     SPI_CMD_INPUT_DATA = 0x06,
+    SPI_CMD_DIAGNOSTICS = XORA_DIAGNOSTICS_SPI_CMD,
     SPI_CMD_TRACE = 0x09,
     SPI_CMD_TRACE_SYNC = 0x0A,
     SPI_CMD_SLEEP = 0x08
@@ -140,6 +143,7 @@ static void spi_log_printf(const char *fmt, ...)
 static const char *spi_cmd_name(uint8_t cmd)
 {
     switch ((spi_cmd_t)cmd) {
+    case SPI_CMD_DIAGNOSTICS: return "DIAGNOSTICS";
     case SPI_CMD_GET_STATUS:
         return "GET_STATUS";
     case SPI_CMD_START_PAIR:
@@ -272,7 +276,7 @@ static void put_u32(uint8_t *dst, uint32_t value)
 
 static bool is_valid_host_cmd(uint8_t cmd)
 {
-    switch ((spi_cmd_t)cmd) {
+    switch (cmd) {
     case SPI_CMD_GET_STATUS:
     case SPI_CMD_START_PAIR:
     case SPI_CMD_STOP_PAIR:
@@ -280,8 +284,10 @@ static bool is_valid_host_cmd(uint8_t cmd)
     case SPI_CMD_SET_RATE:
     case SPI_CMD_INPUT_DATA:
     case SPI_CMD_SLEEP:
+    case SPI_CMD_DIAGNOSTICS:
     case SPI_CMD_TRACE:
     case SPI_CMD_TRACE_SYNC:
+    case XORA_POWER_SPI_CMD:
         return true;
     default:
         return false;
@@ -312,6 +318,8 @@ static bool is_scheduled_command(uint8_t cmd, const uint8_t *payload, uint8_t le
 
     args_len = (uint8_t)(len - SPI_SCHEDULED_ARGS_OFFSET);
     switch ((spi_cmd_t)cmd) {
+    case SPI_CMD_DIAGNOSTICS:
+        return args_len==1u && XORA_POLICY_WIRE_VALID(payload[SPI_SCHEDULED_ARGS_OFFSET]);
     case SPI_CMD_SET_RATE:
         return (args_len == 2u) &&
                is_valid_report_rate_hz(get_u16(&payload[SPI_SCHEDULED_ARGS_OFFSET]));
@@ -473,7 +481,7 @@ static uint8_t build_status_frame_ex(spi_evt_t evt,
     /* Versioned capture state rides the existing status exchange. Unlike a
      * one-shot event, a lost notification or STM32 reset heals on next poll. */
     payload[23] = 0xA0u | RF_IsMeasurementEnabled();
-    payload[24] = 0xD1u; /* All replies are DMA-backed; no inter-byte delay needed. */
+    payload[24] = 0xD3u; /* DMA reply + versioned power snapshot capability. */
 
     if(pending_state_out != 0)
     {
@@ -641,6 +649,9 @@ static void save_pending_scheduled_command(uint8_t cmd,
 static bool execute_control_action(uint8_t cmd, const uint8_t *args, uint8_t args_len)
 {
     switch ((spi_cmd_t)cmd) {
+    case SPI_CMD_DIAGNOSTICS:
+        if(args_len!=1u || !XORA_POLICY_WIRE_VALID(args[0]))return false;
+        XoraDiagnostics_SetEnabled(args[0] & 3u);return true;
     case SPI_CMD_SET_RATE:
         if(args_len == 2u)
         {
@@ -878,6 +889,11 @@ static void process_command(uint8_t cmd, const uint8_t *payload, uint8_t len)
 
     s_rx_count++;
 
+    if(cmd == XORA_POWER_SPI_CMD) {
+        (void)RF_SPI_WritePower(payload,len);
+        return;
+    }
+
     if(cmd == (uint8_t)SPI_CMD_INPUT_DATA)
     {
         (void)RF_SPI_FastWriteInput(payload, len);
@@ -921,6 +937,12 @@ static void process_command(uint8_t cmd, const uint8_t *payload, uint8_t len)
     }
 
     switch ((spi_cmd_t)cmd) {
+    case SPI_CMD_DIAGNOSTICS:
+        if(args_len==1u && XORA_POLICY_WIRE_VALID(args[0])) {
+            XoraDiagnostics_SetEnabled(args[0] & 3u);
+            (void)send_status_frame(SPI_EVT_STATUS,cmd,txn,0u,0u,1u);
+        } else (void)send_error_event(cmd,txn,1u,1u);
+        break;
     case SPI_CMD_GET_STATUS:
         if(args_len == 0u)
         {

@@ -123,6 +123,7 @@ int usb_subsystem_run(usb_board_role_t role)
             XoraLog_TxClockRebase();
         }
         usb_device_process();
+        if(role==USB_BOARD_ROLE_USB && XORA_LOGGING_ENABLED) usb_device_game_log_poll();
         if(role==USB_BOARD_ROLE_MAINTENANCE && !usb_device_is_mounted()) XoraLog_Service(1);
         if(host_initialized)
         {

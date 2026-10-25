@@ -97,7 +97,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
         <Flex
             direction="column"
             height="100vh"
-            width="100vw"
+            width="100%"
             position="relative"
             overflow="auto"
             scrollbarGutter="stable"

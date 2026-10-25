@@ -1,3 +1,4 @@
+#include "storagemanager.hpp"
 #include "configs/common_command_handler.hpp"
 #include "usb_board_link.hpp"
 #include "fault_log_runtime.h"
@@ -8,6 +9,7 @@ static uint8_t flash[8192];
 static int txMode, readFailure;
 static uint8_t batteryClearStatus=FL_OK;
 extern "C" uint8_t XoraLog_Clear(void) { return log_clear(); }
+extern "C" void XoraLog_Service(int safe) { fl_service(&log_runtime,&log_retained,safe);XoraLog_Checkpoint(); }
 extern "C" uint8_t BatteryTest_Clear(void) { return batteryClearStatus; }
 extern "C" void BatteryTest_GetInfo(fl_info *i) {
     *i={}; i->version=1;i->newest=8;i->oldest=1;i->count=8;i->pending=16;
@@ -27,6 +29,12 @@ static int writeFlash(uint32_t a,const void *p,uint32_t n){assert(a+n<=sizeof(fl
 static int eraseFlash(uint32_t a){assert(a+4096<=sizeof(flash));memset(flash+a,255,4096);return 0;}
 bool UsbBoardLink::sendControl(usb_board_control_opcode_t op,const uint8_t *request,uint8_t length,
     uint8_t *response,uint8_t capacity,uint8_t *size,uint8_t *status) {
+    if(op==USB_BOARD_CONTROL_DIAGNOSTICS) {
+        *status=txMode==1 ? USB_BOARD_STATUS_UNSUPPORTED : USB_BOARD_STATUS_OK;
+        if(txMode==1 || txMode==2)return false;
+        static uint8_t enabled=0;if(length){assert(XORA_POLICY_WIRE_VALID(request[0]));enabled=request[0]&3u;}
+        response[0]=XORA_DIAGNOSTICS_VERSION;response[1]=enabled;*size=2;return true;
+    }
     assert(op==USB_BOARD_CONTROL_FAULT_LOG);
     *status=USB_BOARD_STATUS_OK;
     if(txMode==1){*status=USB_BOARD_STATUS_UNSUPPORTED;return false;}
@@ -50,7 +58,31 @@ static DeviceCommandResponse clear(const char *json) {
     return handler.handleClearDeviceLogs(r);
 }
 static bool state(cJSON *p,const char *s){return !strcmp(cJSON_GetObjectItem(p,"status")->valuestring,s);}
+static DeviceCommandResponse policy(const char *json, bool write=true) {
+    CommonCommandHandler handler;DeviceCommandRequest r;
+    r.setCommand(write ? "set_diagnostics_policy" : "get_diagnostics_policy");r.setParams(cJSON_Parse(json));
+    return handler.handleDiagnosticsPolicy(r);
+}
 int main() {
+    {auto r=policy("{}",false);assert(r.getErrNo()==0 && cJSON_IsFalse(cJSON_GetObjectItem(r.getData(),"loggingEnabled")));}
+    {auto r=policy("{\"enabled\":0}");assert(r.getErrNo()==400 && !XORA_DIAGNOSTICS_ENABLED);}
+    Storage::getInstance().failSave=true;
+    {auto r=policy("{\"loggingEnabled\":true,\"monitoringEnabled\":true}");assert(r.getErrNo()==500 && !XORA_DIAGNOSTICS_ENABLED);}
+    Storage::getInstance().failSave=false;
+    {auto r=policy("{\"loggingEnabled\":true,\"monitoringEnabled\":true}");assert(r.getErrNo()==0 && XORA_DIAGNOSTICS_ENABLED);}
+    for(unsigned flags=0;flags<4;flags++) {
+        char json[96];std::snprintf(json,sizeof(json),"{\"loggingEnabled\":%s,\"monitoringEnabled\":%s}",
+            (flags&2)?"true":"false",(flags&1)?"true":"false");
+        auto r=policy(json);assert(r.getErrNo()==0 && XORA_POLICY_FLAGS==flags);
+        assert((Storage::getInstance().config.screenControl.serviceFlags>>2)==flags);
+        assert(!strcmp(cJSON_GetObjectItem(r.getData(),"tx")->valuestring,"applied"));
+    }
+    txMode=1;
+    {auto r=policy("{\"loggingEnabled\":false,\"monitoringEnabled\":false}");assert(r.getErrNo()==0 && !XORA_DIAGNOSTICS_ENABLED);
+     assert(!strcmp(cJSON_GetObjectItem(r.getData(),"tx")->valuestring,"unsupported"));
+     assert(!strcmp(cJSON_GetObjectItem(r.getData(),"rx")->valuestring,"pending"));}
+    txMode=0;
+
     memset(flash,255,sizeof(flash));memset(&log_retained,0,sizeof(log_retained));
     fl_backend backend={readFlash,writeFlash,eraseFlash,sizeof(flash)};
     log_start(&backend,1,123,1);

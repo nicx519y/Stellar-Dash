@@ -1,4 +1,5 @@
 import { BindingArgs, BindingSnapshot, bindingRequest, decodeBinding } from './rf-binding';
+import { WebHidDeviceLease } from './device-lease';
 
 export interface ReceiverDevice extends EventTarget {
   opened: boolean; vendorId: number; productId: number; productName: string;
@@ -23,15 +24,29 @@ export function isReceiver(d: ReceiverDevice) {
     d.collections.some(c => c.usagePage === 0xff00 && c.usage === 1);
 }
 
+export function receiverDeviceLease() {
+  const locks = typeof navigator === 'undefined' ? null : navigator.locks;
+  return new WebHidDeviceLease(locks ? { request: (_name, options, callback) => locks.request('xora-rx-receiver', options, callback) } : null);
+}
 export class ReceiverClient {
+  private lease = receiverDeviceLease();
+  private ownsDevice = false;
   private sequence = Math.floor(Math.random() * 65535);
   private closed = false;
   private rejectPending: ((e: Error) => void) | null = null;
   constructor(readonly device: ReceiverDevice) {}
-  async open() { await this.device.open(); if (this.closed) { await this.device.close(); throw new Error('BINDING_DISCONNECTED'); } }
+  async open() {
+    await this.lease.acquire();
+    try {
+      if(this.closed || this.device.opened) throw new Error('BINDING_BUSY');
+      await this.device.open();
+      this.ownsDevice = true;
+      if(this.closed) { await this.device.close(); throw new Error('BINDING_DISCONNECTED'); }
+    } catch(e) { this.lease.release(); throw e; }
+  }
   async close() {
     this.closed = true; this.rejectPending?.(new Error('BINDING_DISCONNECTED'));
-    if (this.device.opened) await this.device.close();
+    try { if (this.ownsDevice && this.device.opened) await this.device.close(); } finally { this.ownsDevice=false; this.lease.release(); }
   }
   request = async (op: number, args?: BindingArgs): Promise<BindingSnapshot> => {
     if (this.closed || !this.device.opened) throw new Error('BINDING_DISCONNECTED');

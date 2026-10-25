@@ -1,6 +1,7 @@
 #ifndef RX_PROFILE_H
 #define RX_PROFILE_H
 #include <stdint.h>
+#include "diagnostics_policy.h"
 /* RXP1 v1: a frozen snapshot, six little-endian words per USB page. */
 enum { RP_RECEIVED, RP_ACCEPTED, RP_REJECTED, RP_SAME, RP_CHANGED,
        RP_READY, RP_SUBMITTED, RP_COMPLETED, RP_CONGESTION, RP_CANCELLED,
@@ -28,9 +29,24 @@ void RXP_State(uint8_t speed,uint8_t depth,uint8_t highwater,uint8_t pipeline,
                uint32_t generation,uint32_t last_drop,uint32_t drop_generation);
 int RXP_Page(uint8_t report[32]);
 void RXP_PageSent(void);
-#define RXP_SCOPE(name,metric,irq) rxp_scope_t name __attribute__((cleanup(RXP_End))); RXP_Begin(&name,metric,irq)
+static inline void RXP_PolicyEnd(rxp_scope_t *s) { if(s->active) RXP_End(s); }
+#define RXP_SCOPE(name,metric,irq) rxp_scope_t name __attribute__((cleanup(RXP_PolicyEnd))) = {.active=0}; if(XORA_DIAGNOSTICS_ENABLED) RXP_Begin(&name,metric,irq)
 #ifdef RX_PROFILE_WRAP_IRQ
-#define SYS_DisableAllIrq RXP_Lock
-#define SYS_RecoverIrq RXP_Unlock
+static inline void RXP_PolicyLock(uint32_t *saved) {
+    if(XORA_DIAGNOSTICS_ENABLED) RXP_Lock(saved); else SYS_DisableAllIrq(saved);
+}
+static inline void RXP_PolicyUnlock(uint32_t saved) {
+    if(XORA_DIAGNOSTICS_ENABLED) RXP_Unlock(saved); else SYS_RecoverIrq(saved);
+}
+#define SYS_DisableAllIrq RXP_PolicyLock
+#define SYS_RecoverIrq RXP_PolicyUnlock
+#endif
+#ifndef XORA_RX_PROFILE_IMPLEMENTATION
+#define RXP_Init(...) XORA_DIAGNOSTIC_CALL(RXP_Init(__VA_ARGS__))
+#define RXP_Count(...) XORA_DIAGNOSTIC_CALL(RXP_Count(__VA_ARGS__))
+#define RXP_Add(...) XORA_DIAGNOSTIC_CALL(RXP_Add(__VA_ARGS__))
+#define RXP_Time(...) XORA_DIAGNOSTIC_CALL(RXP_Time(__VA_ARGS__))
+#define RXP_Drop(...) XORA_DIAGNOSTIC_CALL(RXP_Drop(__VA_ARGS__))
+#define RXP_State(...) XORA_DIAGNOSTIC_CALL(RXP_State(__VA_ARGS__))
 #endif
 #endif

@@ -68,16 +68,22 @@ export async function processGalleryJpeg(file: File, limits: GalleryImageLimits)
     const selected = selectGifFrameIndices(frameTimesUs, totalUs, JPEG_FPS, limits.maxFrames);
     const rgba = new Uint8ClampedArray(width * height * 4);
     const source = canvas(width, height), ctx = context(source);
+    const previewIndex = Math.min(2, frames.length - 1);
     let next = 0;
-    for (let index = 0; index < frames.length && next < selected.length; index++) {
+    for (let index = 0; index < frames.length && (next < selected.length || index <= previewIndex); index++) {
       const frame = frames[index], dims = frame.dims || { left: 0, top: 0, width, height };
       const restore = frame.disposalType === 3 ? rgba.slice() : null;
       blend(rgba, width, frame.patch, dims.width, dims.height, dims.left, dims.top);
+      // The poster is the third original frame, even when FPS resampling skips
+      // that frame. Both admin and personal uploads save this bounded PNG.
+      if (index === previewIndex) {
+        ctx.putImageData(new ImageData(rgba.slice(), width, height), 0, 0);
+        preview = await encode(render(source, width, height), 'image/png');
+      }
       if (selected[next] === index) {
         ctx.putImageData(new ImageData(rgba.slice(), width, height), 0, 0);
         const target = render(source, width, height);
         const jpeg = new Uint8Array(await (await encode(target, 'image/jpeg')).arrayBuffer());
-        preview ||= await encode(target, 'image/png');
         while (selected[next] === index) {
           outputs.push(jpeg); next++;
         }

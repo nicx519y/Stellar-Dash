@@ -14,6 +14,8 @@
 #define FL_RECORD_BYTES 96u
 #define FL_SOURCE_STM32 1u
 #define FL_SOURCE_TX 2u
+#define FL_SOURCE_RX 4u /* 3 is the existing battery-test journal source. */
+#define FL_INFO 1u
 #define FL_WARN 2u
 #define FL_ERROR 3u
 #define FL_FATAL 4u
@@ -145,12 +147,14 @@ static inline uint8_t fl_append(const fl_backend *b, fl_record *r) {
     if (s.status == FL_IO || s.newest == UINT32_MAX) return FL_IO;
     /* A crash may reset after commit but before the retained mailbox is
      * consumed. Its immutable boot/time/event payload is the dedup key. */
-    if (r->severity == FL_FATAL) {
+    if (r->severity == FL_FATAL || (r->flags & FL_PENDING)) {
         for (start = 0; start < b->bytes; start += FL_SLOT_BYTES) {
             if (b->read(start, &check, sizeof(check))) return FL_IO;
             if (fl_valid(&check) && check.boot == r->boot &&
                 check.uptime_ms == r->uptime_ms && check.event == r->event &&
-                check.source == r->source && !memcmp(check.data, r->data, sizeof(r->data))) {
+                check.source == r->source && check.category == r->category &&
+                check.severity == r->severity && check.words == r->words &&
+                !memcmp(check.data, r->data, sizeof(r->data))) {
                 *r = check;
                 return FL_OK;
             }
@@ -241,9 +245,16 @@ static inline void fl_event(fl_runtime *s, uint32_t now, uint16_t event,
     }
     if (s->count == 2u) {
         ++s->dropped;
-        if (severity != FL_FATAL) return;
-        if (s->queue[0].severity != FL_FATAL && s->queue[1].severity == FL_FATAL)
+        /* Keep the first serious incident; evict context before evidence.
+         * A recovery/update may replace another nonfatal tail, never a crash. */
+        if (severity < s->queue[0].severity && severity < s->queue[1].severity) return;
+        if (s->queue[1].severity == FL_FATAL) {
+            if (s->queue[0].severity == FL_FATAL || severity < s->queue[0].severity) return;
             s->queue[0] = s->queue[1];
+        } else if (severity < s->queue[1].severity) {
+            if (severity < s->queue[0].severity) return;
+            s->queue[0] = s->queue[1];
+        }
         --s->count;
     }
     r = &s->queue[s->count++];
@@ -268,7 +279,10 @@ static inline void fl_service(fl_runtime *s, fl_retained *ret, int safe) {
         return;
     }
     if (s->count) {
-        s->status = fl_append(&s->backend, &s->queue[0]);
+        /* Appending seals/assigns sequence. Keep retained pending evidence
+         * immutable until the persistent commit has been verified. */
+        fl_record next = s->queue[0];
+        s->status = fl_append(&s->backend, &next);
         if (s->status == FL_OK) {
             --s->count;
             s->queue[0] = s->queue[1];

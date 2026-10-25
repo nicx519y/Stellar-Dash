@@ -249,7 +249,7 @@ export function UserAuthControl() {
 
   if (session.authenticated && session.user) {
     return (
-      <>
+      <Box w="84px" h="36px" flexShrink={0} display="flex" justifyContent="center" alignItems="center">
       <MenuRoot
         positioning={{ placement: 'bottom-end' }}
         open={menuOpen}
@@ -400,12 +400,12 @@ export function UserAuthControl() {
           </Dialog.Positioner>
         </ExclusiveDialog>
       </Portal>
-      </>
+      </Box>
     );
   }
 
   return (
-    <>
+    <Box w="84px" h="36px" flexShrink={0} display="flex" justifyContent="center" alignItems="center">
       <Button
         size="xs"
         variant="surface"
@@ -549,6 +549,6 @@ export function UserAuthControl() {
           </Dialog.Positioner>
         </ExclusiveDialog>
       </Portal>
-    </>
+    </Box>
   );
 }

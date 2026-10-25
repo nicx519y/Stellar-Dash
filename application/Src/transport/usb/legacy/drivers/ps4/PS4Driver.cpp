@@ -339,7 +339,7 @@ void PS4Driver::process(Gamepad *gamepad)
         if (tud_hid_ready())
         {
 #if APPLICATION_DEBUG_PRINT == 1
-            LATENCY_MONITOR.usbInStarted();
+            XORA_DIAGNOSTIC_CALL(LATENCY_MONITOR.usbInStarted());
 #endif
             if (tud_hid_report(0, report, report_size) == true)
             {

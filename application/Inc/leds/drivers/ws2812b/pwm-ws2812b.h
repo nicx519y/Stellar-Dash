@@ -63,6 +63,7 @@ void WS2812B_RefreshStrip(WS2812B_Strip strip, const uint16_t start, const uint1
 bool WS2812B_SubmitStrip(WS2812B_Strip strip);
 
 void WS2812B_ServiceStrip(WS2812B_Strip strip);
+void WS2812B_SetPowerLimit(uint8_t percent);
 
 /* halfCount is always zero; completeCount counts successful full frames. */
 void WS2812B_GetUpdateStats(WS2812B_Strip strip,

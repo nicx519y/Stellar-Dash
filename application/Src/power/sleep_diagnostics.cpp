@@ -1,3 +1,4 @@
+#define XORA_SLEEP_DIAGNOSTICS_IMPLEMENTATION
 #include "sleep_diagnostics.hpp"
 #include "board_cfg.h"
 #include "stm32h7xx_hal.h"
@@ -5,6 +6,7 @@
 volatile SleepDiagnostics g_sleepDiagnostics = {};
 void SleepDiagnostics_Record(SleepStage stage, uint32_t error)
 {
+    if (!XORA_DIAGNOSTICS_ENABLED) return;
     g_sleepDiagnostics.stage = static_cast<uint32_t>(stage);
     g_sleepDiagnostics.changedAt = HAL_GetTick();
     if (error) g_sleepDiagnostics.lastError = error;

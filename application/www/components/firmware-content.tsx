@@ -1,6 +1,7 @@
 'use client';
+import { FeedbackSlot } from '@/components/ui/feedback-slot';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Badge, Box, Button, Flex, Heading, HStack, Skeleton, Stack, Text } from '@chakra-ui/react';
+import { Badge, Box, Flex, Heading, HStack, Skeleton, Stack, Text } from '@chakra-ui/react';
 import { useLanguage } from '@/contexts/language-context';
 import { useGamepadFields } from '@/contexts/gamepad-config-context';
 import { FirmwareReleaseCatalog } from './firmware-release-catalog';
@@ -35,7 +36,7 @@ const phases: Record<string, [string, string]> = {
   'tx-restoring': ['TX 更新失败，正在恢复原版本', 'TX update failed; restoring previous version'], 'rollback-verifying': ['核验恢复后的原版本', 'Verifying restored firmware'],
   restored: ['升级失败，已恢复原版本', 'Update failed; previous version restored'], 'restore-failed': ['TX 恢复失败：需要维护恢复', 'TX recovery failed: maintenance recovery required'],
   'maintenance-recovered': ['设备已维护恢复，原升级已取消', 'Device recovered through maintenance; original update cancelled'],
-  timeout: ['等待设备结果超时，升级结果待确认', 'Timed out waiting for device; update result unconfirmed'], backup: ['备份配置', 'Backing up configuration'],
+  timeout: ['升级结果待确认（等待已超时）', 'Update result unconfirmed (wait timed out)'], backup: ['备份配置', 'Backing up configuration'],
   declaring: ['验证签名安装声明', 'Verifying signed declaration'], receiving: ['暂存组件', 'Staging components'],
   prepared: ['组件已验证，可开始安装', 'Components verified; ready to install'], activating: ['提交安装事务', 'Activating installation'],
   activated: ['设备已接管安装', 'Device owns the installation'], 'tx-writing': ['设备正在更新 TX', 'Device is updating TX'],
@@ -114,6 +115,7 @@ export function FirmwareContent() {
         }
       },
       query: () => observationRef.current.getReleaseInventory(),
+      observed: status => { setInventory(status); setInventoryError(''); },
       changed: (next, status) => {
         setTask(next);
         if (next.result === 'completed') {
@@ -121,7 +123,6 @@ export function FirmwareContent() {
         } else {
           try { saveInstallTask(next); } catch { setError(zh ? '任务记录保存失败，请保持此页面打开。' : 'Task persistence failed; keep this page open.'); }
         }
-        if (status) { setInventory(status); setInventoryError(''); }
         setProgress(next.progress || { stage: next.result === 'waiting' ? (status?.phase || 'waiting-device') : next.result });
       },
     });
@@ -133,14 +134,23 @@ export function FirmwareContent() {
   const manualReconnect = () => {
     // A live connection only needs a status read. Resetting that connection
     // interrupts initialization and may never emit a new connected event.
-    void monitorRef.current?.manual(
+    if (readingInventory || busy || !monitorRef.current) return;
+    setReadingInventory(true); setInventoryError('');
+    void monitorRef.current.manual(
       observationRef.current.deviceConnected ? undefined : connectDevice,
-    ).catch(e => setError(String(e)));
+    ).catch(e => setInventoryError(inventoryReadError(e, zh)))
+      .finally(() => { setReadingInventory(false); setLastManualRead(new Date()); });
   };
   const selectionPending = useRef(false);
   const installPending = useRef(false);
   const refresh = useCallback(async (manual = false) => {
-    if (taskRef.current && monitorRef.current) { await monitorRef.current.manual(); return; }
+    if (taskRef.current && monitorRef.current) {
+      if (manual) { setReadingInventory(true); setInventoryError(''); }
+      try { await monitorRef.current.manual(); }
+      catch (e) { setInventoryError(inventoryReadError(e, zh)); }
+      finally { if (manual) { setReadingInventory(false); setLastManualRead(new Date()); } }
+      return;
+    }
     if (!dataIsReady || !deviceConnected) {
       if (manual) setInventoryError(zh
         ? '设备尚未完成连接和配置读取，请先检查连接状态。'
@@ -162,6 +172,13 @@ export function FirmwareContent() {
     }
   }, [dataIsReady, deviceConnected, getReleaseInventory, getDeviceImageCatalog, busy, zh, setProgress]);
   useEffect(() => { if (!task) void refresh(); }, [refresh, task]);
+  useEffect(() => {
+    // On page entry / a new connection, read current inventory once for an old
+    // task. Do not restart its deadline, poll it, or reconnect an open device.
+    if (task && !shouldResumeInstallDialog(task) && dataIsReady && deviceConnected) void refresh();
+    // Only connection readiness and transaction identity start this one-shot read.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataIsReady, deviceConnected, task?.sessionId]);
   useEffect(() => {
     setFinishConfigDisabled(busy || firmwareUpdating || task?.result === 'waiting');
     return () => setFinishConfigDisabled(false);
@@ -235,8 +252,8 @@ export function FirmwareContent() {
         onClick={() => void refresh(true)}><LuRefreshCw />{zh ? '刷新设备状态' : 'Refresh device status'}</PanelActionButton>
     </Flex>
     <Box data-testid="installed-firmware-card" aria-busy={inventoryLoading}
-      borderWidth="1px" borderRadius="xl" px={{ base: '4', md: '5' }} py="4" minH="158px">
-      {inventoryLoading ? <Stack gap="3" role="status" aria-label={zh ? '正在读取当前固件' : 'Loading installed firmware'}>
+      borderWidth="1px" borderRadius="xl" px={{ base: '4', md: '5' }} py="4" minH={{ base: "270px", md: "222px" }}>
+      {inventoryLoading && !inventory ? <Stack gap="3" role="status" aria-label={zh ? '正在读取当前固件' : 'Loading installed firmware'}>
         <HStack justify="space-between" align="start" gap="2" aria-hidden="true">
           <Stack gap="1" flex="1" minW={0}>
             <Skeleton h="24px" w="180px" maxW="full" />
@@ -256,8 +273,10 @@ export function FirmwareContent() {
       </HStack>
       <HStack gap="5" wrap="wrap"><Text>{zh ? '主控' : 'Controller'} <Text as="span" fontWeight="semibold">{stm32Version}</Text></Text>
         <Text>TX <Text as="span" fontWeight="semibold">{inventory?.tx?.version || '—'}</Text></Text></HStack>
+      <FeedbackSlot h={{ base: "80px", md: "40px" }}>
       {!verified && <Text fontSize="12px" color="fg.muted">{zh ? '当前组件尚未核验为完整整机版本。' : 'The installed components have not been verified as a complete release.'}</Text>}
       {inventory && !inventory.tx && <Text fontSize="12px" color="orange.500">{zh ? '未读到 TX 固件身份，请检查板间通信。' : 'TX firmware identity was unavailable. Check the board link.'}</Text>}
+      </FeedbackSlot>
       <Box as="details" fontSize="12px" color="fg.muted" pt="2" borderTopWidth="1px">
         <Box as="summary" cursor="pointer" fontWeight="semibold">{zh ? '设备详情' : 'Device details'}</Box>
         <Stack mt="3" gap="2" overflowWrap="anywhere">
@@ -282,17 +301,27 @@ export function FirmwareContent() {
         ? (zh ? '当前固件信息读取失败，请刷新设备状态重试。' : 'Installed firmware could not be read. Refresh device status to try again.')
         : (zh ? '连接设备后查看当前固件。' : 'Connect the device to view installed firmware.')}</Text>
     </Stack>}</Box>
+    <FeedbackSlot>
     {inventoryError && <Text role="alert" color="red.500" overflowWrap="anywhere">{zh ? '设备状态读取失败：' : 'Device status read failed: '}{deviceDisplayText(inventoryError, currentLanguage)}</Text>}
     {error && !selectedRelease && <Text role="alert" color="red.500" overflowWrap="anywhere">{deviceDisplayText(error, currentLanguage)}</Text>}
+    </FeedbackSlot>
     {progress && !selectedRelease && <Box aria-live="polite" borderWidth="1px" borderRadius="xl" p="5"><Stack gap="3">
       <Heading as="h2" fontSize="2xl">{translate(phases, progress.stage)}</Heading>
+      {task?.result === 'timeout' && <Text fontSize="sm" color="fg.muted">
+        {deviceConnected
+          ? (zh ? '设备当前已连接；此处保留的是上次升级的未确认结果，不代表设备未连接。可刷新升级结果重新核验。' : 'The device is connected. This is an unconfirmed result from the previous update, not a connection error. Refresh the update result to check again.')
+          : (zh ? '这是上次升级的未确认结果。连接设备后可重新核验；超时不代表升级失败。' : 'This is an unconfirmed result from the previous update. Reconnect to check it; a timeout does not mean the update failed.')}
+      </Text>}
       {progress.component && <Text>{progress.component}: {progress.received} / {progress.total} bytes</Text>}
       {inventory?.targetVersion && <Text>{zh ? '目标版本：' : 'Target: '}{inventory.targetVersion}</Text>}
       {inventory?.error && <Text color="red.500">{deviceDisplayText(inventory.error, currentLanguage)}</Text>}
 
       <HStack wrap="wrap">
-        {inventory?.canAbort && <Button h="36px" fontSize="sm" disabled={busy} onClick={() => void recover('abort')}>{zh ? '取消未激活安装' : 'Cancel staged installation'}</Button>}
-        {task && <Button h="36px" fontSize="sm" onClick={manualReconnect}>{zh ? '重新连接设备' : 'Reconnect device'}</Button>}
+        {inventory?.canAbort && <PanelActionButton disabled={busy} onClick={() => void recover('abort')}>{zh ? '取消未激活安装' : 'Cancel staged installation'}</PanelActionButton>}
+        {task && <PanelActionButton disabled={busy || readingInventory || (deviceConnected && !dataIsReady)} onClick={manualReconnect}>
+          <LuRefreshCw />
+          {deviceConnected ? (zh ? '刷新升级结果' : 'Refresh update result') : (zh ? '重新连接设备' : 'Reconnect device')}
+        </PanelActionButton>}
       </HStack>
     </Stack></Box>}
     <FirmwareReleaseCatalog getReleaseAction={release => {
@@ -300,7 +329,7 @@ export function FirmwareContent() {
       const same = verified && inventory.confirmedVersion === release.manifest.version;
       const downgrade = verified && release.manifest.version.localeCompare(inventory.confirmedVersion, undefined, { numeric: true }) < 0;
       return { label: same ? (zh ? '重新安装' : 'Reinstall') : downgrade ? (zh ? '降级安装' : 'Downgrade') : (zh ? '安装此版本' : 'Install release'),
-        disabled: busy || task?.result === 'waiting' || Boolean(reason), reason: reason ? translate(reasons, reason) : undefined,
+        disabled: busy || inventoryLoading || Boolean(inventoryError) || task?.result === 'waiting' || Boolean(reason), reason: reason ? translate(reasons, reason) : undefined,
         onClick: () => select(release) };
     }} />
     <FirmwareInstallDialog release={selectedRelease} zh={zh} view={dialogView} progress={progress} deviceConnected={deviceConnected}

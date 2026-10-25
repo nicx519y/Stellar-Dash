@@ -28,6 +28,10 @@ int main(int argc, char** argv)
     if (!std::strcmp(scenario, "stop-fault")) recoveryStopFault = true;
     if (!std::strcmp(scenario, "debugger")) debug.DHCSR = 1u;
     if (!std::strcmp(scenario, "boot-key")) portC.high &= ~GPIO_BTN1_PIN;
+    if (!std::strcmp(scenario, "protection-boot-key")) portC.high &= ~GPIO_BTN1_PIN;
+    if (!std::strcmp(scenario, "protection-pin-reset")) rcc.RSR=RCC_RSR_PINRSTF | RCC_RSR_CPURSTF;
+    if (!std::strcmp(scenario, "protection-fault")) rcc.RSR|=RCC_RSR_IWDG1RSTF;
+    if (!std::strcmp(scenario, "protection-stop-fault")) recoveryStopFault=true;
     SystemSleep_CaptureBootFlags();
     assert((pwr.CPUCR & 7u) == 0u && (scb.SCR & 6u) == 0u);
     SystemSleep_ConfirmWakeHoldOrReturnStandby();
@@ -35,14 +39,19 @@ int main(int argc, char** argv)
     portC.high = 0xffffu;
     if (!std::strncmp(scenario, "protection", 10)) {
         STORAGE_MANAGER.enabled=false;
-#if HBOX_AUTO_SLEEP_ENABLED == 0
-        assert(!SystemSleep_ProtectionStop() && idleCount==0);
-        return 0;
-#else
+        if (!std::strcmp(scenario, "protection-fault") || !std::strcmp(scenario, "protection-stop-fault")) {
+            assert(!SystemSleep_ProtectionStop() && idleCount==0);return 0;
+        }
+        if (!std::strcmp(scenario, "protection-disabled-for-boot")) SystemSleep_DisableForBoot();
         assert(SystemSleep_ProtectionStop() && idleCount==1 && lastStopInterval==1000);
         debug.DHCSR=1; assert(!SystemSleep_ProtectionStop()); debug.DHCSR=0;
+        irqMask=1; assert(!SystemSleep_ProtectionStop()); irqMask=0;
         POWER_MANAGER.polling=true; assert(!SystemSleep_ProtectionStop()); POWER_MANAGER.polling=false;
-        portC.high &= ~GPIO_BTN1_PIN; assert(!SystemSleep_ProtectionStop()); portC.high=0xffffu;
+        portC.high &= ~(GPIO_BTN1_PIN | GPIO_BTN2_PIN | GPIO_BTN3_PIN | GPIO_BTN4_PIN);
+        portA.high &= ~ROTENC_BTN_PIN;
+        const auto beforeHeld=idleCount;
+        assert(SystemSleep_ProtectionStop() && idleCount==beforeHeld+1 && protectionStopCalls==idleCount);
+        portC.high=portA.high=0xffffu;
         // Both GPIO and Hall wake presses must be released before gameplay.
         SystemSleep_SuppressHeldInputs();
         assert(SystemSleep_FilterInput(0x10u)==0u);
@@ -50,10 +59,10 @@ int main(int argc, char** argv)
         assert(SystemSleep_FilterInput(0u)==0u);
         assert(SystemSleep_FilterInput(0x10u)==0x10u);
         stopOk=false; assert(!SystemSleep_ProtectionStop());
-        stopOk=true; assert(!SystemSleep_ProtectionStop()); // no boot retry loop
+        stopOk=true;SystemSleep_CancelForModeChange();
+        assert(!SystemSleep_ProtectionStop()); // an actual STOP fault stays inhibited
         assert(INPUT_STATE.running); // protection owner, never this API, manages loads
         return 0;
-#endif
     }
     if (!std::strcmp(scenario, "disabled")) {
         step(60000); assert(!SystemSleep_IsBusy() && idleCount == 0);
@@ -104,17 +113,20 @@ int main(int argc, char** argv)
         assert(!SystemSleep_IsBusy() && INPUT_STATE.running);
         INPUT_STATE.pauseOk = true; step(60000);
         assert(!SystemSleep_IsBusy());
+        assert(SystemSleep_ProtectionStop()); // an ordinary ADC prepare failure is independent
         return 0;
     }
     if (!std::strcmp(scenario, "prepare-timeout") || !std::strcmp(scenario, "disable-prepare")) bridgeIdle = false;
     step(200);
     if (!std::strcmp(scenario, "reset") || !std::strcmp(scenario, "fault") || !std::strcmp(scenario, "stop-fault") || !std::strcmp(scenario, "boot-key")) {
-        assert(!SystemSleep_ProtectionStop());
+        const bool fault=!std::strcmp(scenario,"fault") || !std::strcmp(scenario,"stop-fault");
+        assert(SystemSleep_ProtectionStop()==!fault);
+        const auto count=idleCount;
         step(60000);
-        assert(!SystemSleep_IsBusy() && INPUT_STATE.neutrals == 0 && idleCount == 0);
+        assert(!SystemSleep_IsBusy() && INPUT_STATE.neutrals == 0 && idleCount == count);
         STORAGE_MANAGER.enabled = false; step(2);
         STORAGE_MANAGER.enabled = true; step(60000);
-        assert(!SystemSleep_IsBusy() && idleCount == 0);
+        assert(!SystemSleep_IsBusy() && idleCount == count);
         return 0;
     }
     assert(SystemSleep_IsBusy() && !INPUT_STATE.running);
@@ -135,7 +147,9 @@ int main(int argc, char** argv)
         assert(INPUT_STATE.running && !SystemSleep_IsBusy());
         stopOk = true;
         const auto count = idleCount; step(60000);
-        assert(!SystemSleep_IsBusy() && idleCount == count); return 0;
+        assert(!SystemSleep_IsBusy() && idleCount == count);
+        assert(!SystemSleep_ProtectionStop()); // a real shared-backend failure remains a veto
+        return 0;
     }
     if (!std::strcmp(scenario, "stop-short-key")) {
         // Edge arrives and is released entirely while SysTick is suspended.
@@ -183,6 +197,7 @@ int main(int argc, char** argv)
         assert(!SystemSleep_IsBusy() && INPUT_STATE.running);
         bridgeIdle = true; step(60000);
         assert(!SystemSleep_IsBusy());
+        assert(SystemSleep_ProtectionStop()); // a transport timeout must not veto protection
         return 0;
     }
     if (!std::strcmp(scenario, "mode-change")) {

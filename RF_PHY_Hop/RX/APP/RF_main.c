@@ -16,6 +16,8 @@
 #include "CONFIG.h"
 #include "HAL.h"
 #include "RF_PHY.h"
+#include "rx_fault_log.h"
+#include "fault_log_api.h"
 #include "ch585_usbhs_device.h"
 #include "dongle_config.h"
 #include <stdio.h>
@@ -212,7 +214,7 @@ void Main_Circulation()
     while(1)
     {
         uint32_t now = RF_LinkClockNow();
-        uint32_t now_tmr = TMR0_GetCurrentTimer();
+        uint32_t now_tmr = XORA_DIAGNOSTICS_ENABLED ? TMR0_GetCurrentTimer() : 0u;
         LED_Ctrl_Service();
 #if (RF_TEST_BYPASS_TMOS_AFTER_RF == 1)
         if(rf_init_done)
@@ -223,8 +225,10 @@ void Main_Circulation()
         {
         TMOS_SystemProcess();
         }
-        RF_Service();
-        RX_MainFlushLog();
+        RX_LogPoll();
+        if(rf_init_done) RF_Service();
+        if(rf_init_done && XORA_LOGGING_ENABLED) RF_GameLogPoll();
+        XORA_DIAGNOSTIC_CALL(RX_MainFlushLog());
 
         if(rf_init_deadline == 0u)
         {
@@ -232,10 +236,12 @@ void Main_Circulation()
         }
 
         if((rf_init_started == FALSE) &&
+           !RX_LogPaused() && !XoraLog_Restricted() &&
            ((int32_t)(now - rf_init_deadline) >= 0))
         {
             rf_init_started = TRUE;
             RF_Init();
+            RX_LogRadioReady();
             rf_init_done = TRUE;
             RX_MainLog("R0\r\n");
             last_log_tmr = TMR0_GetCurrentTimer();
@@ -244,7 +250,7 @@ void Main_Circulation()
             continue;
         }
 
-        if((rf_init_done) &&
+        if(XORA_DIAGNOSTICS_ENABLED && (rf_init_done) &&
            (RF_GetTelemetryPeriodMs() != 0u) &&
            ((uint32_t)(now - last_hid_telemetry_clock) >=
             MS1_TO_SYSTEM_TIME(RF_GetTelemetryPeriodMs())))
@@ -256,12 +262,12 @@ void Main_Circulation()
                 last_hid_telemetry_clock = now;
             }
         }
-        else if(rf_init_done)
+        else if(rf_init_done && XORA_DIAGNOSTICS_ENABLED)
         {
             (void)RF_TrySendTraceReport();
         }
 
-        if(RX_MainTmr0Elapsed(now_tmr,
+        if(XORA_DIAGNOSTICS_ENABLED && RX_MainTmr0Elapsed(now_tmr,
                               &last_log_tmr,
                               &log_acc_tmr,
                               RX_MAIN_LOG_PERIOD_TICKS) != FALSE)
@@ -514,6 +520,7 @@ int main(void)
     CH58x_BLEInit();
     HAL_Init();
     RF_RoleInit();
+    RX_LogInit();
     RF_USB_CompositeInit();
     Main_Circulation();
 }

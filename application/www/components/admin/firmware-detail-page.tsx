@@ -1,5 +1,6 @@
 'use client';
 
+import { FeedbackSlot } from '@/components/ui/feedback-slot';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { DragEvent } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -166,24 +167,24 @@ export default function AdminFirmwareDetailPage() {
       : !isAdmin ? <Alert colorPalette="orange" title={zh ? '请使用管理员账户登录。' : 'Sign in with an administrator account.'} />
       : !id ? <Alert colorPalette="orange" title={zh ? '缺少固件版本 ID。' : 'Missing firmware release ID.'} /> : <>
         {process.env.NEXT_PUBLIC_OFFLINE_PREVIEW === 'true' && <Box bg="purple.subtle" color="purple.fg" borderRadius="lg" p="3" fontSize="sm">{zh ? 'MOCK 预览：数据仅存于本标签页，不执行真实签名校验或发布。' : 'MOCK PREVIEW: tab-local data, no real signature verification or publishing.'}</Box>}
-        {error && <Box role="alert" p="3" borderWidth="1px" borderColor="red.500" overflowWrap="anywhere">{deviceDisplayText(error, currentLanguage)}</Box>}
-        {loading && <Center minH="240px"><Spinner colorPalette="green" /></Center>}
+        <FeedbackSlot h="60px">{error && <Box role="alert" p="3" borderWidth="1px" borderColor="red.500" overflowWrap="anywhere">{deviceDisplayText(error, currentLanguage)}</Box>}</FeedbackSlot>
+        {loading && !release && <Center minH="240px"><Spinner colorPalette="green" /></Center>}
         {release && <AdminCard p={{ base: 5, md: 8 }} color="fg" fontSize="sm" lineHeight="1.7" letterSpacing="normal"><Stack gap={7}>
           <Flex justify="space-between" align="center" wrap="wrap" gap={4}>
             <HStack gap={3}><Heading as="h2" fontSize="xl" fontWeight="semibold" lineHeight="1.4">{zh ? '版本概览' : 'Release overview'}</Heading><Badge colorPalette={release.status === 'published' ? 'green' : release.status === 'withdrawn' ? 'orange' : 'gray'}>{statusName(release.status)}</Badge></HStack>
             <HStack wrap="wrap" justify="flex-end" gap="2">
               {release.status === 'draft' && <>
-                <Text role="status" fontSize="xs" color={saveState.status === 'error' ? 'red.500' : 'fg.muted'}>
+                <Text role="status" w="82px" fontSize="xs" color={saveState.status === 'error' ? 'red.500' : 'fg.muted'}>
                   {({ saved: zh ? '已保存' : 'Saved', unsaved: zh ? '未保存' : 'Unsaved', saving: zh ? '保存中…' : 'Saving…', error: zh ? '保存失败' : 'Save failed' })[saveState.status]}
                 </Text>
-                {saveState.status === 'error' && <Text role="alert" fontSize="xs" color="red.500" maxW="260px" overflowWrap="anywhere">{deviceDisplayText(saveState.error, currentLanguage)}</Text>}
-                {saveState.status === 'error' && <Button size="xs" variant="ghost" onClick={() => void editor.current?.flush()}>{zh ? '重试' : 'Retry'}</Button>}
+                <Button size="xs" variant="ghost" visibility={saveState.status === 'error' ? "visible" : "hidden"} disabled={saveState.status !== 'error'} onClick={() => void editor.current?.flush()}>{zh ? '重试' : 'Retry'}</Button>
               </>}
               <Button size="sm" variant="outline" colorPalette="red" loading={busy === 'delete'} disabled={!!busy || saveState.status === 'saving' || saveState.status === 'unsaved'} onClick={() => requestTransition('delete')}><LuTrash2 />{zh ? '删除固件' : 'Delete firmware'}</Button>
               {release.status !== 'published' && <Button size="sm" colorPalette="green" disabled={!!busy || saveState.status !== 'saved' || !release.notes.trim()} onClick={() => requestTransition('publish')}>{release.status === 'withdrawn' ? (zh ? '重新校验并恢复发布' : 'Revalidate & restore') : (zh ? '发布正式版' : 'Publish release')}</Button>}
               {release.status === 'published' && <Button size="sm" colorPalette="orange" disabled={!!busy} onClick={() => requestTransition('withdraw')}>{zh ? '撤回发布' : 'Withdraw'}</Button>}
             </HStack>
           </Flex>
+          <FeedbackSlot>{saveState.status === 'error' && <Text role="alert" color="red.500">{deviceDisplayText(saveState.error, currentLanguage)}</Text>}</FeedbackSlot>
           <FirmwareReleaseDetails manifest={release.manifest} zh={zh} />
           <Stack gap={2.5}>
             <HStack gap={2} align="center"><Box color="green.fg" fontSize="lg"><LuCircleCheck /></Box><Heading as="h2" fontSize="md" fontWeight="semibold" lineHeight="1.4">{zh ? '自动校验通过' : 'Automated checks passed'}</Heading></HStack>

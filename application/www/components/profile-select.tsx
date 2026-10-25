@@ -1,10 +1,12 @@
 "use client";
 
+import { SidebarList, SidebarListItems, SidebarListItem } from '@/components/ui/sidebar-list';
+import { toaster } from '@/components/ui/toaster';
 import { GameProfile, PROFILE_NAME_MAX_LENGTH } from "@/types/gamepad-config";
 import { useEffect, useRef, useState } from "react";
-import { Box, Button, HStack, IconButton, Separator, Text, VStack } from "@chakra-ui/react";
+import { Box, IconButton, Text } from "@chakra-ui/react";
 import { Tooltip } from "@/components/ui/tooltip";
-import { LuLayers3, LuPencil } from "react-icons/lu";
+import { LuLayers3, LuPencil, LuTriangleAlert } from "react-icons/lu";
 import { FaLock } from "react-icons/fa";
 import { openForm } from '@/components/dialog-form';
 import { useGamepadFields } from "@/contexts/gamepad-config-context";
@@ -16,7 +18,6 @@ export function ProfileSelect({ disabled = false }: { disabled?: boolean }) {
         deviceConnected, deviceSession, dataIsReady, isLoading, rfBindingBusy } = useGamepadFields("profileList", "switchProfile", "stageDeferredProfileDetails", "configEditingBlocked", "deviceConnected", "deviceSession", "dataIsReady", "isLoading", "rfBindingBusy");
     const { t } = useLanguage();
     const [operation, setOperation] = useState<'dialog' | 'save' | 'switch' | null>(null);
-    const [error, setError] = useState('');
     const busy = useRef(false);
     const mounted = useRef(false);
     useEffect(() => {
@@ -32,11 +33,10 @@ export function ProfileSelect({ disabled = false }: { disabled?: boolean }) {
         if (live.current.blocked || busy.current || profile.id === profileList.defaultId) return;
         busy.current = true;
         setOperation('switch');
-        setError('');
         try {
             await switchProfile(profile.id);
         } catch {
-            setError(t.PROFILE_SELECT_OPERATION_FAILED);
+            toaster.error({ title: t.PROFILE_SELECT_OPERATION_FAILED });
         } finally {
             busy.current = false;
             setOperation(null);
@@ -48,7 +48,6 @@ export function ProfileSelect({ disabled = false }: { disabled?: boolean }) {
         const session = live.current.deviceSession;
         busy.current = true;
         setOperation('dialog');
-        setError('');
         try {
             const result = await openForm({
                 title: t.DIALOG_RENAME_PROFILE_TITLE,
@@ -73,7 +72,7 @@ export function ProfileSelect({ disabled = false }: { disabled?: boolean }) {
                 id: profile.id, name: result.profileName,
             });
         } catch {
-            setError(t.PROFILE_SELECT_OPERATION_FAILED);
+            toaster.error({ title: t.PROFILE_SELECT_OPERATION_FAILED });
         } finally {
             busy.current = false;
             setOperation(null);
@@ -81,52 +80,43 @@ export function ProfileSelect({ disabled = false }: { disabled?: boolean }) {
     };
 
     return (
-        <VStack as="section" aria-label={t.PROFILE_SELECT_TITLE} align="stretch" gap={3} h="100%" minH={0}>
-            <Text fontSize="md" fontWeight="semibold" color={disabled ? 'fg.muted' : 'fg'} flexShrink={0}>
-                {t.PROFILE_SELECT_TITLE}
-            </Text>
-            {dataIsReady && !compatible && <Text role="status" fontSize="xs" color="fg.muted">{t.PROFILE_SELECT_FIRMWARE_REQUIRED}</Text>}
-            {error && <Text role="alert" fontSize="xs" color="fg.error">{error}</Text>}
-            <VStack align="stretch" gap={0} overflowY="auto" minH={0} flex={1}
-                separator={<Separator />}>
+        <SidebarList as="section" data-testid="profile-sidebar" aria-label={t.PROFILE_SELECT_TITLE}
+            title={t.PROFILE_SELECT_TITLE} h="100%" color={disabled ? 'fg.muted' : undefined}
+            titleAction={dataIsReady && !compatible ? <Tooltip content={t.PROFILE_SELECT_FIRMWARE_REQUIRED}>
+                <IconButton aria-label={t.PROFILE_SELECT_FIRMWARE_REQUIRED} title={t.PROFILE_SELECT_FIRMWARE_REQUIRED}
+                    variant="ghost" color="orange.fg" h="18px" minW="18px" p={0}><LuTriangleAlert /></IconButton>
+            </Tooltip> : undefined}>
+            <SidebarListItems overflowY="auto" flex={1}>
                 {slots.map((profile, index) => {
                     const selected = profile?.id === profileList.defaultId;
                     return (
-                        <HStack key={index} gap={0} flexShrink={0} minH="36px" borderRadius="md"
-                            bg={selected ? 'green.solid' : 'transparent'}
-                            transition="background-color 150ms ease"
-                            _hover={{ bg: selected ? 'green.500' : 'bg.emphasized' }}
-                            _focusWithin={{ bg: selected ? 'green.500' : 'bg.emphasized' }}
-                            css={{
+                        <SidebarListItem key={index} selected={selected} aria-pressed={selected}
+                            disabled={blocked || !!operation || !profile}
+                            onClick={() => profile && void select(profile)}
+                            rowProps={{ css: {
                                 '& .profile-edit': { opacity: 0, pointerEvents: 'none' },
                                 '&:hover .profile-edit, &:focus-within .profile-edit': { opacity: 1, pointerEvents: 'auto' },
                                 '& .profile-edit svg': { opacity: 0.55, transition: 'opacity 150ms ease' },
                                 '& .profile-edit:hover svg, & .profile-edit:focus-visible svg': { opacity: 1 },
                                 '@media (hover: none)': { '& .profile-edit': { opacity: 1, pointerEvents: 'auto' } },
-                            }}>
-                            <Button size="sm" variant="ghost" flex={1} minW={0} px={2} justifyContent="flex-start"
-                                color={selected ? 'green.contrast' : 'fg.muted'} aria-pressed={selected}
-                                _hover={{ bg: 'transparent' }}
-                                disabled={blocked || !!operation || !profile}
-                                onClick={() => profile && void select(profile)}>
-                                <Box flexShrink={0} aria-hidden="true"><LuLayers3 size={15} /></Box>
-                                <Text as="span" truncate title={profile?.name}>{profile?.name || t.PROFILE_SELECT_UNAVAILABLE}</Text>
-                                {profile?.isCompetitionProfile && <Box flexShrink={0} color="orange.400"><FaLock aria-label={t.SETTINGS_KEY_MAPPING_COMPETITION_MODE_LABEL} size={10} /></Box>}
-                            </Button>
-                            <Tooltip content={t.PROFILE_SELECT_RENAME_BUTTON}>
+                            } }}
+                            action={<Tooltip content={t.PROFILE_SELECT_RENAME_BUTTON}>
                                 <IconButton className="profile-edit" size="xs" variant="ghost" flexShrink={0}
-                                    color={selected ? 'green.contrast' : undefined}
+                                    color="inherit"
                                     _hover={{ bg: 'transparent' }}
                                     aria-label={t.PROFILE_SELECT_RENAME_BUTTON + ': ' + (profile?.name || t.PROFILE_SELECT_UNAVAILABLE)}
                                     disabled={blocked || !!operation || !profile}
                                     onClick={() => profile && void rename(profile)}>
                                     <LuPencil />
                                 </IconButton>
-                            </Tooltip>
-                        </HStack>
+                            </Tooltip>}>
+                            <Box as={LuLayers3} boxSize="15px" flexShrink={0} aria-hidden="true" />
+                            <Text as="span" truncate title={profile?.name}>{profile?.name || t.PROFILE_SELECT_UNAVAILABLE}</Text>
+                            {profile?.isCompetitionProfile && <Box flexShrink={0} color="orange.400"><FaLock aria-label={t.SETTINGS_KEY_MAPPING_COMPETITION_MODE_LABEL} size={10} /></Box>}
+                        </SidebarListItem>
                     );
                 })}
-            </VStack>
-        </VStack>
+            </SidebarListItems>
+        </SidebarList>
     );
 }

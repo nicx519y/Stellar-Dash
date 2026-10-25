@@ -1,5 +1,6 @@
 'use client';
 
+import { FeedbackSlot } from '@/components/ui/feedback-slot';
 import { Box, Center, Heading, Input, Stack, Text } from '@chakra-ui/react';
 import { useEffect, useState } from 'react';
 import { Alert } from '@/components/ui/alert';
@@ -83,7 +84,7 @@ export default function VerifyEmailPage() {
                 <Heading size="xl">{t.AUTH_VERIFY_TITLE}</Heading>
                 <Text color="fg.muted">{t.AUTH_VERIFY_DESCRIPTION}</Text>
               </Stack>
-              {error && <Alert colorPalette="red" title={error} />}
+              <FeedbackSlot h="64px">{error && <Alert colorPalette="red" title={error} />}</FeedbackSlot>
               <Field
                 label={t.AUTH_PASSWORD_LABEL}
                 helperText={t.AUTH_PASSWORD_RULE}

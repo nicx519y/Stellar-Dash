@@ -1,6 +1,7 @@
 'use client';
+import { FeedbackSlot } from '@/components/ui/feedback-slot';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Badge, Box, Button, Flex, Heading, HStack, Input, Stack, Text } from '@chakra-ui/react';
+import { Badge, Box, Button, Flex, Heading, HStack, Input, Stack, Text, Skeleton } from '@chakra-ui/react';
 import { adminRuntime } from '@hbox/admin-runtime';
 import { useLanguage } from '@/contexts/language-context';
 import type { PublicFirmwareRelease, ReleasePage } from '@/lib/admin/firmware-types';
@@ -21,17 +22,17 @@ export function FirmwareReleaseCatalog({ getReleaseAction }: {
   const { currentLanguage } = useLanguage(); const zh = currentLanguage === 'zh';
   const [page, setPage] = useState<ReleasePage<PublicFirmwareRelease>>({ items: [], total: 0, limit: 20, offset: 0 });
   const [query, setQuery] = useState(''); const [hardware, setHardware] = useState(''); const [offset, setOffset] = useState(0);
-  const [loading, setLoading] = useState(false); const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true); const [error, setError] = useState('');
   const generation = useRef(0);
   const load = useCallback(async () => {
     const g = ++generation.current; setLoading(true); setError('');
     try { const next = await adminRuntime.firmware.catalog({ query, hardware, offset }); if (g === generation.current) setPage(next); }
-    catch (e) { if (g === generation.current) { setPage({ items: [], total: 0, limit: 20, offset: 0 }); setError(e instanceof Error ? e.message : String(e)); } }
+    catch (e) { if (g === generation.current) { setError(e instanceof Error ? e.message : String(e)); } }
     finally { if (g === generation.current) setLoading(false); }
   }, [query, hardware, offset]);
   useEffect(() => { void load(); return () => { generation.current++; }; }, [load]);
   const selectForInstall = (action: FirmwareCatalogAction) => {
-    if (action.disabled) return;
+    if (action.disabled || loading || error) return;
     action.onClick();
   };
   return <Stack gap="4" w="full" minW={0}>
@@ -54,11 +55,12 @@ export function FirmwareReleaseCatalog({ getReleaseAction }: {
         <LuRefreshCw />{zh ? '刷新版本列表' : 'Refresh releases'}
       </PanelActionButton>
     </Flex>
-    {error && <Text role="alert" fontSize="sm" color="red.500" overflowWrap="anywhere">{error}</Text>}
+    <FeedbackSlot>{error && <Text role="alert" color="red.500">{error}</Text>}</FeedbackSlot>
     {!error && !loading && !page.items.length && <Box borderWidth="1px" borderRadius="lg" p="6">
       <Text fontSize="sm">{zh ? '暂无匹配的正式固件。' : 'No matching published firmware.'}</Text>
     </Box>}
-    <Stack gap="2">
+    <Stack gap="2" aria-busy={loading} minH="220px">
+      {loading && !page.items.length && <Skeleton h="220px" />}
       {page.items.map(release => {
         const action = getReleaseAction?.(release);
         return <Box key={release.id} borderWidth="1px" borderColor="app.border" borderRadius="lg" px={{ base: '4', md: '5' }} py="4" minW={0}>
@@ -73,13 +75,13 @@ export function FirmwareReleaseCatalog({ getReleaseAction }: {
                 {displayFirmwareNotes(release.notes, zh)}
               </Text>
             </Stack>
-            <Stack gap="1" align={{ base: 'stretch', md: 'end' }} flexShrink={0}>
-              {action && <PanelActionButton accent disabled={action.disabled}
+            {action && <Stack gap="1" align={{ base: 'stretch', md: 'end' }} flexShrink={0} w={{ base: "full", md: "250px" }}>
+              {action && <PanelActionButton accent w="full" disabled={action.disabled || loading || !!error}
                 onClick={() => selectForInstall(action)}><LuDownload />{action.label}</PanelActionButton>}
-              {action?.reason && <Text fontSize="12px" color="fg.muted" maxW={{ md: '250px' }} textAlign={{ md: 'end' }}>
+              {action && <FeedbackSlot w="full" h="60px">{action.reason && <Text fontSize="12px" color="fg.muted" maxW={{ md: '250px' }} textAlign={{ md: 'end' }}>
                 {action.reason}
-              </Text>}
-            </Stack>
+              </Text>}</FeedbackSlot>}
+            </Stack>}
           </Flex>
           <Box as="details" fontSize="12px" color="fg.muted" mt="4" pt="2" borderTopWidth="1px">
             <Box as="summary" cursor="pointer" fontWeight="semibold">{zh ? '查看详情' : 'View details'}</Box>

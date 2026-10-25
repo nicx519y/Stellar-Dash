@@ -2,6 +2,7 @@
 #define _LATENCY_MONITOR_HPP_
 
 #include <stdint.h>
+#include "diagnostics_policy.h"
 #include "micro_timer.hpp"
 #include "board_cfg.h"
 

@@ -5,6 +5,7 @@
 #define RF_TRANSPORT_HPP
 #define RF_COMMAND_TRANSACTION_HPP
 #include "sleep_diagnostics.hpp"
+inline volatile uint8_t g_xora_diagnostics_enabled = 1;
 
 inline uint32_t testNow = 0, localIterations = 0, powerOns = 0, powerOffs = 0, neutralCount = 0;
 inline bool parkOk = true, roleOk = true, beginOk = true, sendOk = true;
@@ -21,7 +22,7 @@ struct Reply { uint16_t rate; bool physicalStatus; };
 inline std::deque<Reply> replies;
 inline uint32_t HAL_GetTick() { return testNow; }
 inline volatile SleepDiagnostics g_sleepDiagnostics = {};
-inline void SleepDiagnostics_Record(SleepStage stage, uint32_t error) {
+inline void (SleepDiagnostics_Record)(SleepStage stage, uint32_t error) {
     g_sleepDiagnostics.stage = static_cast<uint32_t>(stage);
     if (error) g_sleepDiagnostics.lastError = error;
 }
@@ -52,9 +53,11 @@ public:
 struct RFScheduledCommand { uint32_t started = 0; bool sent = false; };
 struct RFCommandTransaction {
     static void beginScheduled(RFScheduledCommand& w, uint32_t now) { w = {now, false}; }
-    static void stepScheduled(RFScheduledCommand& w, uint8_t, const uint8_t* args, uint8_t, uint32_t) {
+    static void stepScheduled(RFScheduledCommand& w, uint8_t command, const uint8_t* args, uint8_t length, uint32_t) {
         assertApplicationReady();
-        wireRate = args[0] | (args[1] << 8); w.sent = sendOk;
+        if(command == XORA_DIAGNOSTICS_SPI_CMD) { assert(length == 1u); }
+        else { assert(length == 2u); wireRate = args[0] | (args[1] << 8); }
+        w.sent = sendOk;
     }
 };
 enum class RFPortStep { Pending, Complete, Error };

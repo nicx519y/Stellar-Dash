@@ -1,5 +1,6 @@
 'use client';
 
+import { FeedbackSlot } from '@/components/ui/feedback-slot';
 import { normalizeScreenControl, SCREEN_FEATURE_IDS, SCREEN_LANGUAGE_MENU_ID } from '@/lib/screen-control-config';
 import React, { useEffect, useMemo, useState } from 'react';
 import { VStack, HStack, Table, Box, Text, RadioCard, RadioGroup } from '@chakra-ui/react';
@@ -183,7 +184,9 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
             
             
             
+            <FeedbackSlot>
             {screenControl.standbySupported === false && <Text role="alert" color="fg.warning">{t.SETTINGS_SCREEN_CONTROL_UPDATE_REQUIRED}</Text>}
+            </FeedbackSlot>
             <VStack align="stretch" gap={4} >
 
                 <TitleLabel title={t.SETTINGS_SCREEN_CONTROL_BASIC} />

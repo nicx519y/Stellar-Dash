@@ -1,5 +1,6 @@
 #include "storagemanager.hpp"
 #include "config.hpp"
+#include "diagnostics_policy.h"
 #include "stm32h750xx.h"
 #include <stdio.h>
 #include <string.h>
@@ -12,6 +13,7 @@ static uint8_t g_defaultProfileChangedCbCount = 0;
 void Storage::initConfig() {
 	APP_DBG("Storage::init begin.");
 	ConfigUtils::load(config);
+    XoraDiagnostics_SetEnabled((config.screenControl.serviceFlags & SCREEN_SERVICE_DIAGNOSTICS_ENABLED) >> 2);
     LightingResources::initialize();
 	// APP_DBG("Storage::initConfig - hotkeys: %d", config.hotkeys[0].virtualPin);
 	// ConfigUtils::reset(config);
@@ -79,7 +81,9 @@ void Storage::setBootMode(BootMode bootMode) {
 bool Storage::resetConfig()
 {
 	APP_DBG("Storage::resettings begin.");
-	return ConfigUtils::reset(config);
+	const bool ok = ConfigUtils::reset(config);
+    if (ok) XoraDiagnostics_SetEnabled(0);
+    return ok;
 	// NVIC_SystemReset();				//reboot
 }
 

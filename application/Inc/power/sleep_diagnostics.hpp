@@ -1,5 +1,6 @@
 #pragma once
 #include <stdint.h>
+#include "diagnostics_policy.h"
 
 enum class SleepStage : uint32_t {
     Awake, Preparing, PortParked, StopEnter, StopReturn, LocalRestore,
@@ -15,3 +16,6 @@ struct SleepDiagnostics {
 };
 extern volatile SleepDiagnostics g_sleepDiagnostics;
 void SleepDiagnostics_Record(SleepStage stage, uint32_t error = 0u);
+#ifndef XORA_SLEEP_DIAGNOSTICS_IMPLEMENTATION
+#define SleepDiagnostics_Record(...) XORA_DIAGNOSTIC_CALL(SleepDiagnostics_Record(__VA_ARGS__))
+#endif

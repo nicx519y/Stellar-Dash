@@ -11,10 +11,10 @@ function report(raw:Uint8Array,magic:number) {
 const mapping=[12,13,14,15,0,1,2,3,4,5,6,7,8,9,10,11,16];
 const standard=(mask:number)=>mapping.reduce((sum,bit,i)=>sum|((mask&(1<<i))?1<<bit:0),0)>>>0;
 type Edge={revision:number;flags:number;pages:number;at:number;event:ButtonLatencyEvent;values:Array<number|null>};
-type Control={session:number;flags:number;period:number;transaction:number;status:number};
+type Control={session:number;flags:number;period:number;transaction:number;status:number;diagnosticsAllowed?:boolean};
 function parseControl(raw:Uint8Array):Control|null {
   const b=report(raw,CONTROL);if(!b || crc(b,30)!==u16(b,30) || (b[19]&3)!==3)return null;
-  return {session:u32(b,12),flags:b[7],period:u16(b,16),transaction:u32(b,8),status:b[6]};
+  return {session:u32(b,12),flags:b[7],period:u16(b,16),transaction:u32(b,8),status:b[6],diagnosticsAllowed:(b[19]&4)?b[24]===1:undefined};
 }
 let generation=0;
 /** One device, one decoder, one lease. No HID arrival frequency enters the rate. */
@@ -59,10 +59,19 @@ export class UsbMonitorPeer {
     this.publish({kind:"device_status",timestampMs:Date.now(),mode:"USB",sourceMode:"USB",deviceId:this.id,
       state,statusLabel:label,targetRateHz:this.previous?.effectiveRateHz??0,actualRateHz:0,rateValid:false});
   }
+  private blocked(c:Control|null):boolean {
+    if(c?.diagnosticsAllowed !== false)return false;
+    this.previous=null;this.lastAt=0;
+    this.status={state:"Idle",rxStatus:"Idle",txStatus:"Idle",lastSeq:this.sequence,diagnosticsAllowed:false,
+      message:"设备已关闭诊断监控采集；请在 Device Logs 开启后重新连接采集"};
+    this.connection("设备诊断监控已关闭");return true;
+  }
   async configure(config:DebugConfig) {
     const desired={...config};this.desired=desired;
     try {
+      if(this.blocked(await this.command(0)))return this.status;
       const c=await this.command(1,desired);
+      if(this.blocked(c))return this.status;
       if(this.closed || this.desired!==desired)return this.status;
       const expected=config.hidTelemetryEnabled?1|(config.latencyMeasurementEnabled?2:0):0;
       const ok=c?.status===0 && c.flags===expected && c.period===config.hidPeriodMs;
@@ -80,12 +89,13 @@ export class UsbMonitorPeer {
       message:`${message}：${detail.slice(0,160)}`};
   }
   async maintain() {
-    if(this.closed)return;
+    if(this.closed || this.control?.diagnosticsAllowed===false)return;
     this.expire();
     const desired=this.desired;
     if(!desired?.hidTelemetryEnabled)return;
     try {
       const c=await this.command(2);
+      if(this.blocked(c))return;
       if(this.closed || this.desired!==desired)return;
       const expected=1|(desired.latencyMeasurementEnabled?2:0);
       if(!c || c.status!==0 || c.flags!==expected || c.period!==desired.hidPeriodMs) {

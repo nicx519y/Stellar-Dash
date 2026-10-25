@@ -33,22 +33,27 @@ void XoraLog_Init(void) {
     log_start(&backend,FL_SOURCE_TX,((XORA_RELEASE_VERSION_MAJOR<<16)|(XORA_RELEASE_VERSION_MINOR<<8)|XORA_RELEASE_VERSION_PATCH),
               (R8_RESET_STATUS & RB_RESET_FLAG)==RST_FLAG_RPOR);
     log_cycles_per_ms=GetSysClock()/1000u;
-    log_last_cycles=SysTick->CNTL;
+    log_last_cycles=SysTick->CNT;
 }
 void XoraLog_Service(int safe) {
-    if(log_started) fl_service(&log_runtime,&log_retained,safe);
+    if(!safe || !log_persistence_pending()) return;
+    log_runtime.reported_drops = log_runtime.dropped;
+    fl_service(&log_runtime,&log_retained,1);
+    XoraLog_Checkpoint();
 }
 uint8_t XoraLog_Clear(void) { return log_clear(); }
 /* Existing RF/USB initializers may reset the hardware counter. Preserve our
  * elapsed time but rebase after those owners initialize it; never program it. */
-void XoraLog_TxClockRebase(void) { log_last_cycles=SysTick->CNTL; }
+void XoraLog_TxClockRebase(void) { log_last_cycles=SysTick->CNT; }
 void XoraLog_TxPoll(void) {
     const uint32_t elapsed=(uint32_t)(SysTick->CNTL-log_last_cycles);
-    /* No 64-bit division or clock-tree inspection in the RF service loop. */
+    /* Core uptime/crash-loop recovery survives disabled diagnostics. This
+     * is not input profiling; no records, CRC checks or storage work off. */
     if(log_cycles_per_ms && elapsed>=log_cycles_per_ms) {
         const uint32_t ms=elapsed/log_cycles_per_ms;
         log_last_cycles+=ms*log_cycles_per_ms;
-        XoraLog_Tick(log_now+ms);
+        log_now+=ms;
+        if(XORA_LOGGING_ENABLED || log_retained.streak) XoraLog_Tick(log_now);
     }
 }
 static __attribute__((noreturn)) void capture(uint32_t reason) {
@@ -58,7 +63,7 @@ static __attribute__((noreturn)) void capture(uint32_t reason) {
     __asm volatile("csrr %0, mtval" : "=r"(data[2]));
     data[3]=reason;
     __asm volatile("csrci mstatus, 8" ::: "memory");
-    fl_capture(&log_retained,FL_SOURCE_TX,((XORA_RELEASE_VERSION_MAJOR<<16)|(XORA_RELEASE_VERSION_MINOR<<8)|XORA_RELEASE_VERSION_PATCH),log_now,FL_EVENT_CPU,data,4);
+    log_capture(&log_retained,FL_SOURCE_TX,((XORA_RELEASE_VERSION_MAJOR<<16)|(XORA_RELEASE_VERSION_MINOR<<8)|XORA_RELEASE_VERSION_PATCH),log_now,FL_EVENT_CPU,data,4);
     __asm volatile("fence rw, rw" ::: "memory");
     if(log_retained.streak<4u) SYS_ResetExecute();
     for(;;) __asm volatile("nop");

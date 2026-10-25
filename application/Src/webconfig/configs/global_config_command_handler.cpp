@@ -530,6 +530,8 @@ DeviceCommandResponse GlobalConfigCommandHandler::handleImportAllConfig(const De
         return create_error_response(request.getCid(), request.getCommand(), 1,
                                      "Background image is missing or invalid");
     }
+    candidate.screenControl.serviceFlags = (candidate.screenControl.serviceFlags & ~SCREEN_SERVICE_DIAGNOSTICS_ENABLED) |
+        (Storage::getInstance().config.screenControl.serviceFlags & SCREEN_SERVICE_DIAGNOSTICS_ENABLED);
     if (!ConfigUtils::save(candidate)) {
         reset_config_import();
         LOG_ERROR("DeviceCommand", "import_all_config: Failed to save configuration");
@@ -740,6 +742,8 @@ DeviceCommandResponse GlobalConfigCommandHandler::handleImportConfigFinish(const
                                      "Background image is missing or invalid");
     }
 
+    g_configImport.candidate.screenControl.serviceFlags = (g_configImport.candidate.screenControl.serviceFlags & ~SCREEN_SERVICE_DIAGNOSTICS_ENABLED) |
+        (Storage::getInstance().config.screenControl.serviceFlags & SCREEN_SERVICE_DIAGNOSTICS_ENABLED);
     if (!ConfigUtils::save(g_configImport.candidate)) {
         reset_config_import();
         return create_error_response(request.getCid(), request.getCommand(), 1,

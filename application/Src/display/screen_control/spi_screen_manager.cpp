@@ -90,6 +90,7 @@ static FirmwareRecoveryPage g_firmwareRecoveryPage = FirmwareRecoveryPage::Detai
 static uint32_t g_battUiLastSampleMs = 0;
 static uint32_t g_battUiChargeAnimStartMs = 0;
 static uint8_t g_battUiSoc = 0;
+static uint16_t g_battUiCellMv = 0;
 static PowerChargeState g_battUiChargeState = PowerChargeState::Unknown;
 static bool g_battUiFastCharging = false;
 static bool g_battUiLowBattery = false;
@@ -223,7 +224,7 @@ static const char* get_connection_mode_label(void) {
     }
 }
 
-static void update_battery_ui_cache(uint32_t nowMs) {
+__attribute__((optimize("Os"))) static void update_battery_ui_cache(uint32_t nowMs) {
     const PowerSnapshot power = POWER_MANAGER.getSnapshot();
     if (g_battUiLastSampleMs != 0u && (uint32_t)(nowMs - g_battUiLastSampleMs) < 1000u &&
         power.data_quality == g_battUiQuality && power.charge_state == g_battUiChargeState &&
@@ -233,10 +234,9 @@ static void update_battery_ui_cache(uint32_t nowMs) {
     }
     g_battUiLastSampleMs = nowMs;
     g_battUiQuality = power.data_quality;
-    float soc = static_cast<float>(power.soc_permille) / 10.0f;
-    if (soc < 0.0f) soc = 0.0f;
-    if (soc > 100.0f) soc = 100.0f;
-    g_battUiSoc = (uint8_t)(soc + 0.5f);
+    g_battUiCellMv = power.valid ? power.cell_mv : 0u;
+    g_battUiSoc = power.soc_permille >= 1000u ? 100u :
+        static_cast<uint8_t>((power.soc_permille + 5u) / 10u);
     const PowerChargeState nextChargeState = power.charge_state;
     const bool nextFastCharging = power.fast_charge;
     if (nextChargeState == PowerChargeState::Charging &&
@@ -305,16 +305,30 @@ static bool render_centered_asset_icon(ST7789_Handle* lcd,
     return true;
 }
 
-static void render_left_battery_icon(ST7789_Handle* lcd, uint16_t leftW, uint16_t bodyY, uint32_t fg, uint32_t bg, uint32_t nowMs) {
+__attribute__((optimize("Os"))) static void render_left_battery_icon(ST7789_Handle* lcd, uint16_t leftW, uint16_t bodyY, uint32_t fg, uint32_t bg, uint32_t nowMs) {
+    const bool showVoltage = BatteryTest_Active && BatteryTest_Active() &&
+        !(BatteryTest_IsCharge && BatteryTest_IsCharge());
     const uint16_t bodyW = 26u;
     const uint16_t bodyH = SPI_SCREEN_BATTERY_BODY_H;
     const uint16_t headW = 2u;
     const uint16_t headH = 6u;
     const uint16_t totalW = (uint16_t)(bodyW + headW);
     const uint16_t x = (leftW > totalW) ? (uint16_t)((leftW - totalW) / 2u) : 0u;
-    const uint16_t y = bodyY;
+    // Leave room below the connection icon for a 6x12 voltage label on the 172px screen.
+    const uint16_t y = bodyY + (showVoltage ? 8u : 0u);
     const uint16_t headX = (uint16_t)(x + bodyW);
     const uint16_t headY = (uint16_t)(y + ((bodyH - headH) / 2u));
+
+    if (showVoltage) {
+        char voltage[8] = "--.--V";
+        if (g_battUiQuality == PowerDataQuality::Fresh && g_battUiCellMv != 0u) {
+            const unsigned centivolts = (g_battUiCellMv + 5u) / 10u;
+            snprintf(voltage, sizeof(voltage), "%u.%02uV", centivolts / 100u, centivolts % 100u);
+        }
+        const uint16_t textH = ScreenUI_CharCellH(SCREEN_FONT_SMALL);
+        ScreenUI_DrawStringCenteredInBox(lcd, 0u, y - textH - 2u, leftW, textH,
+                                        voltage, fg, bg, SCREEN_FONT_SMALL);
+    }
 
     const bool lowBorderVisible = !g_battUiLowBattery || ((nowMs % 1000u) < 500u);
     if (lowBorderVisible) {
@@ -663,12 +677,21 @@ void SPIScreenManager::handleInput(uint32_t nowMs, int8_t det, bool clicked, boo
     }
 }
 
-void SPIScreenManager::loop() {
+// UI maintenance is outside the input/ISR path; conserve RAM-resident code.
+__attribute__((optimize("Os"))) void SPIScreenManager::loop() {
+    const PowerSnapshot loadPower = POWER_MANAGER.getSnapshot();
+    static bool supplyNoticeShown = false;
+    if (loadPower.supply_insufficient && !supplyNoticeShown && MainRuntime_IsInputActive()) {
+        static const char* lines[] = {"Check charger", "Lights reduced"};
+        show_webconfig_entry_popup("Power limited", lines, 2);
+    }
+    supplyNoticeShown = loadPower.supply_insufficient;
     const bool noticeWasVisible = g_batteryNotice.visible();
     const bool chargeWasVisible = g_sleepCharge.visible();
     g_batteryNotice.update(HAL_GetTick(), POWER_MANAGER.isLowBattery());
     g_sleepCharge.update(HAL_GetTick(), !g_batteryNotice.visible() &&
-        (SystemSleep_IsSleeping() || g_batteryNotice.protectedMode()), POWER_MANAGER.getSnapshot());
+        (SystemSleep_IsSleeping() || g_batteryNotice.protectedMode()) &&
+        !loadPower.supply_insufficient, loadPower);
     const bool chargeVisible = g_sleepCharge.visible();
     const bool batteryOverlay = g_batteryNotice.visible() || chargeVisible;
     const uint32_t layer = chargeVisible ? 4u : static_cast<uint32_t>(g_batteryNotice.notice());
@@ -927,7 +950,7 @@ static void render_platform_badge(ST7789_Handle* lcd, const char* label, uint32_
     ScreenUI_DrawStringCenteredInBox(lcd, x, y, badgeW, badgeH, label, bg, fg, font);
 }
 
-void SPIScreenManager::renderBars() {
+__attribute__((optimize("Os"))) void SPIScreenManager::renderBars() {
     const uint16_t w = ST7789_WIDTH;
     const uint16_t h = ST7789_HEIGHT;
     const uint16_t leftW = SPI_SCREEN_LEFT_BAR_W;
@@ -1157,6 +1180,11 @@ __attribute__((optimize("Os"))) void SPIScreenManager::renderBatteryNotice(uint3
         lines[1] = power.battery_level == BatteryLevel::RecoveryReady ? "to resume" :
             (power.charge_block == PowerChargeBlock::None ? "Charging" :
              (power.vbus_present ? "Check charger" : "Input paused"));
+    }
+    if (power.supply_insufficient) {
+        title = "Power limited";
+        lines[0] = "Check charger";
+        lines[1] = power.supply_recovery_locked ? "Charge to retry" : "Lights reduced";
     }
     const ScreenTimedPopup popup{true, true, 0u, title, lines, 2u};
     const ScreenUiStyle style{g_cfgBg, g_cfgText, g_cfgSelBg, g_cfgOkBg};

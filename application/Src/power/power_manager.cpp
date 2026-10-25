@@ -1,5 +1,7 @@
 #include "power_manager.hpp"
 #include "battery_test_log.h"
+#include "power_load_outputs.h"
+#include "battery_soc_curve.hpp"
 
 #include "board_cfg.h"
 #include "board_mode.hpp"
@@ -636,7 +638,7 @@ void PowerManager::publishSnapshot(const BQ25895_State& charger_state,
 
     if (snapshot_.valid) {
         snapshot_.cell_mv = gauge_state.cell_mv;
-        snapshot_.soc_permille = gauge_state.soc_permille;
+        snapshot_.raw_soc_permille = gauge_state.soc_permille;
         snapshot_.sampled_at_ms = HAL_GetTick();
         snapshot_.has_sample = true;
     }
@@ -725,6 +727,17 @@ void PowerManager::publishSnapshot(const BQ25895_State& charger_state,
     snapshot_.fast_charge = snapshot_.charge_state == PowerChargeState::Charging &&
         safe_9v_input && isFastChargeDetected();
 
+    soc_estimator_.sample({snapshot_.sampled_at_ms, snapshot_.cell_mv,
+        snapshot_.raw_soc_permille, snapshot_.charge_current_ma, snapshot_.valid,
+        snapshot_.vbus_present, snapshot_.charge_state == PowerChargeState::Charging,
+        snapshot_.charge_state == PowerChargeState::Full,
+        snapshot_.charge_block == PowerChargeBlock::None,
+        snapshot_.supply_insufficient || snapshot_.input_current_regulation ||
+            snapshot_.input_voltage_regulation});
+    snapshot_.soc_permille = soc_estimator_.soc();
+    snapshot_.soc_source = soc_estimator_.source();
+    snapshot_.soc_estimated = soc_estimator_.estimated();
+
     processLowVoltageProtection();
 }
 
@@ -732,11 +745,31 @@ void PowerManager::processLowVoltageProtection()
 {
     const auto before=battery_policy_.confirmationMask();
     const auto oldLevel=battery_policy_.level();
+    const bool qualified = snapshot_.charge_block == PowerChargeBlock::None;
+    load_policy_.sample(HAL_GetTick(), snapshot_.valid, snapshot_.vbus_present,
+        qualified, batteryProtectionRequired(), snapshot_.cell_mv, snapshot_.soc_permille,
+        snapshot_.charge_current_ma,
+        snapshot_.input_current_regulation || snapshot_.input_voltage_regulation,
+        snapshot_.thermal_regulation, snapshot_.charge_state == PowerChargeState::Full);
+    snapshot_.led_power_percent = load_policy_.ledPercent();
+    snapshot_.lcd_power_percent = load_policy_.lcdPercent();
+    snapshot_.supply_insufficient = load_policy_.insufficient();
+    snapshot_.supply_recovery_locked = load_policy_.locked();
+    WS2812B_SetPowerLimit(snapshot_.led_power_percent);
+    SPIST7789_SetPowerLimit(snapshot_.lcd_power_percent);
     battery_policy_.sample(HAL_GetTick(), snapshot_.valid, snapshot_.cell_mv,
-        snapshot_.soc_permille, snapshot_.charge_block == PowerChargeBlock::None);
+        snapshot_.soc_permille, qualified && load_policy_.recoveryAllowed(snapshot_.cell_mv),
+        load_policy_.locked());
     const auto after=battery_policy_.confirmationMask();
     if(before!=after) BT_EVENT(BAT_THRESHOLD_CHANGED,after,before);
     snapshot_.battery_level = battery_policy_.level();
+    if (snapshot_.valid && !qualified && snapshot_.cell_mv <= 3200u &&
+        snapshot_.battery_level == BatteryLevel::Critical) {
+        soc_estimator_.anchorEmpty();
+        snapshot_.soc_permille = soc_estimator_.soc();
+        snapshot_.soc_source = soc_estimator_.source();
+        snapshot_.soc_estimated = soc_estimator_.estimated();
+    }
     if(oldLevel!=snapshot_.battery_level)
         BT_EVENT(BAT_LEVEL_CHANGED,static_cast<uint32_t>(snapshot_.battery_level),static_cast<uint32_t>(oldLevel));
     snapshot_.battery_confirmation_pending = battery_policy_.needsFrequentSamples();
@@ -744,6 +777,8 @@ void PowerManager::processLowVoltageProtection()
 
 void PowerManager::invalidateSample()
 {
+    soc_estimator_.sample({0, 0, 0, 0, false, false, false, false, false, false});
+    snapshot_.soc_estimated = true;
     snapshot_.valid = false;
     snapshot_.fast_charge = false;
     snapshot_.charge_block = PowerChargeBlock::Telemetry;

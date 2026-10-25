@@ -18,6 +18,8 @@ bool RFBridgePort_ControlTransferForceTxWithTimeout(const uint8_t* tx,
                                                     uint16_t* rxLen,
                                                     uint32_t ackTimeoutMs);
 bool RFBridgePort_SendNoResponse(const uint8_t* tx, uint16_t txLen);
+// Best effort main-loop DMA submission; never drops or waits for input.
+bool RFBridgePort_SendBackground(const uint8_t* tx, uint16_t txLen);
 bool RFBridgePort_SendInputLatest(const uint8_t* tx, uint16_t txLen);
 bool RFBridgePort_PrepareWakeLineIdle(void);
 bool RFBridgePort_WakePulse(void);

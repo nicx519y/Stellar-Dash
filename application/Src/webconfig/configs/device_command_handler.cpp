@@ -156,6 +156,8 @@ void DeviceCommandDispatcher::initializeHandlers() {
     registerHandler("get_device_logs_list", &commonHandler);
     registerHandler("get_device_logs_page", &commonHandler);
     registerHandler("clear_device_logs", &commonHandler);
+    registerHandler("get_diagnostics_policy", &commonHandler);
+    registerHandler("set_diagnostics_policy", &commonHandler);
     
     // 注册固件相关命令
     registerHandler("get_device_auth", &firmwareHandler);

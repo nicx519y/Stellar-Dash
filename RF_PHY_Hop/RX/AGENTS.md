@@ -13,6 +13,7 @@ RX 接收 RF 输入，完成解码、映射和排队，再通过 USB XInput 通�
 | 输入队列、中立帧与完成回调 | [rx_pipeline_impl.inc](APP/rx_pipeline_impl.inc)、[rx_report_queue.h](APP/include/rx_report_queue.h) |
 | USB 控制器、DMA 与枚举 | [RF_USB_Composite.c](APP/RF_USB_Composite.c)、[ch585_usbhs_device.c](APP/ch585_usbhs_device.c)、[usb_desc_xinput.c](APP/usb_desc_xinput.c) |
 | 诊断计数与时序 | [rx_profile.c](APP/rx_profile.c)、[rx_profile.h](APP/include/rx_profile.h) |
+| 连接故障日志与诊断读取 | [fault_log_rx.c](APP/fault_log_rx.c)、[协议](../../common/rx_log_protocol.h)、[设备日志](../../docs/device-fault-logs.md) |
 | 频道事务 | [rf_channel_manager.c](APP/rf_channel_manager.c)、[rf_channel_radio.c](APP/rf_channel_radio.c) |
 | 构建与链接布局 | [Makefile](Makefile) |
 
@@ -22,7 +23,9 @@ RX 接收 RF 输入，完成解码、映射和排队，再通过 USB XInput 通�
 - 保留队列临界区、USB 独立 DMA 副本及端点所有权。连接代次 `generation`、输入代次 `epoch`、取消/完成检查和中立帧提交共同防止旧输入重放；USB 复位、断连、恢复和 RF 重配置时不能复用失效的在途报告。
 - 修改 USB 描述符、端点或 HID telemetry 格式时，同时检查 [WebConfig 规则](../../application/www/AGENTS.md)、[监视器规则](../../connect-monitor/AGENTS.md) 及相应编解码；保留 XInput 与诊断通道的职责边界。
 - 默认 `SERIAL_LOG=0`。诊断沿 HID telemetry 路径，不自行打开高频串口文本改变被测负载；真实 DATA、辅助数据与统计包分开计数，提交与完成也不能混算。
+- 故障日志 Data-Flash 限定 `0x1000–0x5FFF`，保留 `0x0000` 和两个绑定 bank。正常游戏和自动重连不擦写，禁止为了自动保存日志停无线或暂停 USB。只有确认断链或 fatal 的待写证据可在业务自身已停止的窗口落盘。诊断读取暂停业务但不强制落盘，CLOSE/USB 复位/租约超时恢复；清空须显式确认并回读。不要在 ISR 写 Flash 或复用游戏报告缓冲发送日志。
 - 配对提交与持久化遵守 [RF 共同规则](../AGENTS.md) 和 [USB 配对说明](../../docs/WEBCONFIG_RX_BINDING_20260923.md)，不恢复已移除的 RX 长按配对入口。
+- RX 连接故障日志只观察已建立连接的持续断开；换频道事务期间跳过故障检测并重新开始断链确认计时。短时断流、丢包、队列拥塞、中立帧和频道切换本身不触发故障记录。当前确认时长沿用 `GL_DISCONNECT_CONFIRM_MS`；确认后继续重连，证据留在 RAM，等业务自身停止的安全窗口或重启再保存；不得为落盘停无线或暂停 USB。
 - RX 使用自己的 Makefile 和 SDK 链接布局，不能套用 TX 合并镜像、Application 起始地址或日常 `flash tx` 路径。TX IAP 的独立维护授权不适用于 RX；本文件不新增 RX 烧录或 IAP 写入入口。
 
 ## 构建与验证

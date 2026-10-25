@@ -8,6 +8,7 @@
 #include "trace_clock.hpp"
 #include "monitor_telemetry.hpp"
 #include "power_manager.hpp"
+#include "power_soc_telemetry.h"
 #include "rf_command_transaction.hpp"
 #include "rf_bridge_port.hpp"
 #include "rf_source_trace.h"
@@ -16,11 +17,37 @@
 #include "stm32h7xx_hal.h"
 
 // Sparse RAM-only trace of accepted SPI echoes, read without halting sampling.
-volatile uint32_t g_rf_sync_sent[16][4] = {};
+// NOLOAD slots are written before publishing their BSS-initialized count.
+__attribute__((section(".DMA_Section"), aligned(32)))
+volatile uint32_t g_rf_sync_sent[16][4];
 volatile uint32_t g_rf_sync_sent_count = 0;
 volatile uint32_t g_rf_sync_bridge_diag[4] = {};
 
 namespace {
+bool g_powerCapable = false;
+uint32_t g_powerSentAt = 0, g_powerSampleAt = 0;
+uint16_t g_powerSeq = 0;
+__attribute__((optimize("Os"))) static void servicePowerSnapshot(bool connected) {
+    if (!XORA_DIAGNOSTICS_ENABLED) return;
+    const uint32_t now = HAL_GetTick();
+    if (!connected || !g_powerCapable || now-g_powerSentAt < 1000u ||
+        !RFBridgePort_IsInputIdle() || RFBridgePort_HasPendingEvent()) return;
+    const auto p = POWER_MANAGER.getSnapshot();
+    uint8_t frame[4u+XORA_POWER_BYTES] = {0xA5u,XORA_POWER_SPI_CMD,XORA_POWER_BYTES};
+    uint8_t* out = frame+3;
+    out[0] = XORA_POWER_VERSION;
+    out[1] = uint8_t((p.valid?1u:0u)|(p.vbus_present?2u:0u)|(p.fast_charge?4u:0u)|
+        (p.soc_estimated?8u:0u)|(p.battery_level!=BatteryLevel::Normal?16u:0u)|
+        (unsigned(p.soc_source)<<5));
+    if (p.sampled_at_ms != g_powerSampleAt) { g_powerSampleAt=p.sampled_at_ms; ++g_powerSeq; }
+    xp_put16(out+2,g_powerSeq); xp_put32(out+4,p.sampled_at_ms);
+    xp_put16(out+8,p.cell_mv);xp_put16(out+10,p.soc_permille);
+    xp_put16(out+12,p.vbus_mv);xp_put16(out+14,p.charge_current_ma);
+    out[16]=uint8_t(p.charge_state);xp_put16(out+18,p.fault_bits);
+    xp_put32(out+20,now-p.sampled_at_ms);
+    for (unsigned i=0;i<sizeof(frame)-1;i++) frame[sizeof(frame)-1]+=frame[i];
+    if (RFBridgePort_SendBackground(frame,sizeof(frame))) g_powerSentAt=now;
+}
 static constexpr uint8_t RF_SYNC = 0xA5u;
 static constexpr uint8_t CMD_GET_STATUS = 0x01u;
 static constexpr uint8_t CMD_START_PAIR = 0x02u;
@@ -75,7 +102,9 @@ static uint16_t g_relative_event;
 static bool g_relative_enabled;
 // Completed source records have a different lifetime from the current input.
 // New key edges must not replace records whose bounded SPI copies are pending.
-static RelativeEdge g_relative_pending[8];
+// CPU-only pending slots: resetSession clears the queue indices, and enqueue
+// writes a complete record before making it visible to the consumer.
+__attribute__((section(".DMA_Section"), aligned(32))) static RelativeEdge g_relative_pending[8];
 static uint8_t g_relative_pending_head, g_relative_pending_tail, g_relative_pending_count;
 static uint32_t g_relative_pending_drops;
 static void queueRelativeSource(const RelativeEdge& record) {
@@ -105,6 +134,7 @@ bool g_haveLastInputKeyMask = false;
 uint32_t g_lastInputKeyMask = 0u;
 
 static void applyRelativeCapture(bool enabled) {
+    enabled = enabled && XORA_DIAGNOSTICS_ENABLED;
     if(g_relative_enabled == enabled)return;
     g_relative_enabled=enabled;
     g_relative={};
@@ -117,7 +147,8 @@ static void applyRelativeCaptureStatus(const uint8_t* payload, uint8_t len) {
     // extension marker may change it; counters in bytes 21/22 are not flags.
     if(len >= 24u && (payload[23]&0xFEu)==0xA0u) {
         applyRelativeCapture((payload[23]&1u)!=0);
-        RFBridgePort_SetDmaReplyCapable(len >= 25u && payload[24]==0xD1u);
+        RFBridgePort_SetDmaReplyCapable(len >= 25u && (payload[24]&0xFDu)==0xD1u);
+        g_powerCapable = len >= 25u && payload[24]==0xD3u;
     }
 }
 
@@ -175,6 +206,7 @@ void RFTransport::resetSession() {
     g_haveLastInputKeyMask = false;
     g_lastInputKeyMask = 0u;
     RFBridgePort_SetDmaReplyCapable(false);
+    g_powerCapable=false;g_powerSentAt=g_powerSampleAt=0;
 }
 
 bool RFTransport::acceptRecoveryFrame(const uint8_t* frame, uint16_t len) {
@@ -521,7 +553,7 @@ bool RFTransport::transferCommand(uint8_t cmd, const uint8_t* payload, uint8_t l
             (unsigned int)status.lastEvent,
             (unsigned int)status.lastResult,
             (unsigned int)status.rateHz);
-    if (cmd == CMD_GET_STATUS) {
+    if (cmd == CMD_GET_STATUS || cmd == XORA_DIAGNOSTICS_SPI_CMD) {
         state = RFTransportState::Connected;
         return true;
     }
@@ -621,7 +653,9 @@ uint32_t RFTransport::buildHitboxKeyMask(const GamepadState& gamepad) {
 }
 
 bool RFTransport::begin() {
-    return transferCommand(CMD_GET_STATUS, nullptr, 0u, true);
+    if (!transferCommand(CMD_GET_STATUS, nullptr, 0u, true)) return false;
+    const uint8_t diagnostics=XORA_POLICY_WIRE;
+    return transferCommand(XORA_DIAGNOSTICS_SPI_CMD,&diagnostics,1u,true);
 }
 
 bool RFTransport::startPair() {
@@ -676,6 +710,7 @@ uint8_t RFTransport::serviceEvents(uint8_t drainLimit) {
     }
     RFReliableEvent::poll();
     processCompletedReliableEvents();
+    servicePowerSnapshot(status.connected);
 
     if (drainLimit == 0u) {
         return 0u;
@@ -736,7 +771,7 @@ bool RFTransport::sendInput(const GamepadState& gamepad, uint32_t seq) {
     payload[4] = static_cast<uint8_t>((keyMask >> 16) & 0xFFu);
     payload[5] = static_cast<uint8_t>((keyMask >> 24) & 0xFFu);
     const bool changed = !g_haveLastInputKeyMask || keyMask != g_lastInputKeyMask;
-    if(changed) {
+    if(XORA_DIAGNOSTICS_ENABLED && changed) {
         g_haveLastInputKeyMask=true;g_lastInputKeyMask=keyMask;
         g_relative={};
         if(g_relative_enabled) {
@@ -769,4 +804,12 @@ bool RFTransport::sendInput(const GamepadState& gamepad, uint32_t seq) {
     bool ok = transferCommand(CMD_INPUT_DATA, payload, sizeof(payload), false);
     MonitorTelemetry_OnRfTransfer(seq, CMD_INPUT_DATA, sizeof(payload), ok);
     return ok;
+}
+
+extern "C" void USBBoardLink_ResetDiagnostics(void);
+extern "C" void XoraDiagnostics_OnChange(void) {
+    g_relative_enabled=false;g_relative={};
+    g_relative_pending_head=g_relative_pending_tail=g_relative_pending_count=0;
+    g_haveLastInputKeyMask=false;
+    USBBoardLink_ResetDiagnostics();
 }

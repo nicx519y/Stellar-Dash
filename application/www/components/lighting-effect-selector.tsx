@@ -1,5 +1,5 @@
 "use client";
-import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Box, Button, Flex, Icon, Popover, Portal, Spinner, Text } from '@chakra-ui/react';
 import { LuSunDim, LuActivity, LuSparkles, LuWaves, LuTarget, LuCloudSunRain, LuAudioLines, LuDownload, LuTrash2 } from 'react-icons/lu';
 import { keyframes } from '@emotion/react';
@@ -53,37 +53,18 @@ export function LightingEffectSelector({ items, selected, preview, ambient, disa
   onSelect: (item: LightingChoice) => void; onAction: (item: LightingChoice) => void;
 }) {
   const {t, currentLanguage} = useLanguage(), {colorMode} = useColorMode(), zh = currentLanguage === 'zh';
-  const container = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(0), [height, setHeight] = useState(EFFECT_CARD_HEIGHT), [visibleCount, setVisibleCount] = useState(0);
-  const previousHeight = useRef(EFFECT_CARD_HEIGHT);
-  useLayoutEffect(() => {
-    const node = container.current;
-    if (!node) return;
-    const measure = () => setWidth(node.clientWidth);
-    measure();
-    const observer = new ResizeObserver(measure); observer.observe(node);
-    return () => observer.disconnect();
-  }, []);
-  useEffect(() => {
-    if (loading || !width) return;
-    const columns = Math.max(1, Math.floor((width + 8) / 120));
-    const rows = Math.max(1, Math.ceil(items.length / columns)), next = rows * EFFECT_CARD_HEIGHT + (rows - 1) * 8;
-    const grow = next > previousHeight.current;
-    previousHeight.current = next; setHeight(next);
-    if (!grow || window.matchMedia('(prefers-reduced-motion: reduce)').matches) { setVisibleCount(items.length); return; }
-    const timer = setTimeout(() => setVisibleCount(items.length), 240);
-    return () => clearTimeout(timer);
-  }, [items.length, loading, width]);
   const ids = ambient ? ambientEffectIds : keyEffectIds;
   const icons = ambient ? [LuSunDim, LuActivity, LuAudioLines, TbMeteorFilled] : [LuSunDim, LuActivity, LuSparkles, LuWaves, LuTarget, LuCloudSunRain];
   const labels = ambient
     ? [t.SETTINGS_LEDS_STATIC_LABEL, t.SETTINGS_LEDS_BREATHING_LABEL, t.SETTINGS_LEDS_QUAKE_LABEL, t.SETTINGS_LEDS_METEOR_LABEL]
     : [t.SETTINGS_LEDS_STATIC_LABEL, t.SETTINGS_LEDS_BREATHING_LABEL, t.SETTINGS_LEDS_STAR_LABEL, t.SETTINGS_LEDS_FLOWING_LABEL, t.SETTINGS_LEDS_RIPPLE_LABEL, t.SETTINGS_LEDS_TRANSFORM_LABEL];
-  return <Box width="full" minW="0" data-testid={ambient ? 'ambient-effect-selector' : 'key-effect-selector'}>
+  return <Box width="full" minW="0" css={{ containerType: "inline-size" }} data-testid={ambient ? 'ambient-effect-selector' : 'key-effect-selector'}>
     <Text fontSize="sm" mb="2">{ambient ? t.SETTINGS_AMBIENT_LIGHT_EFFECT_LABEL : t.SETTINGS_LEDS_EFFECT_STYLE_CHOICE}</Text>
-    <Box ref={container} height={`${height}px`} transition="height 240ms ease" _motionReduce={{transition:'none'}} aria-busy={loading}>
+    <Box h={ambient ? "160px" : "244px"} overflowY="auto" aria-busy={loading}
+      css={{ scrollbarGutter: "stable", "@container (min-width: 375px)": { height: "160px" },
+        [`@container (min-width: ${ambient ? 495 : 735}px)`]: { height: "76px" } }}>
       <Flex gap="8px" wrap="wrap" alignItems="flex-start" justifyContent="flex-start">
-        {items.slice(0, visibleCount).map(item => {
+        {items.map(item => {
           const key = resourceKey(item), index = ids.indexOf(item.resourceId), EffectIcon = icons[index] ?? LuSparkles;
           const label = `${labels[index] ?? item.name}${items.filter(other => other.resourceId === item.resourceId).length > 1 ? ` · v${item.revision}` : ''}`;
           return <EffectCard key={key} item={item} label={label} icon={<Icon fontSize="2xl"><EffectIcon/></Icon>}

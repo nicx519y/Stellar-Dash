@@ -1,9 +1,26 @@
 #include "stop_timer_timing.hpp"
+#include "stop_wake_gate.hpp"
 #include "power_manager.hpp"
 #include <cassert>
 #include <initializer_list>
 
 int main() {
+    // Every combination of the five wake keys: protection tolerates existing
+    // held levels, but never loses a new press/edge or an already-fired timer.
+    for(uint32_t initial=0; initial<32u; ++initial) {
+        const StopWakeGate protection(initial,true), ordinary(initial,false);
+        assert(protection.mayWait(initial,0,0,true));
+        assert(ordinary.mayWait(initial,0,0,true)==(initial==0u));
+        assert(protection.mayWait(0,0,0,true)); // release alone does not keep CPU awake
+        assert(!protection.mayWait(initial,0,0,false));
+        for(unsigned bit=0; bit<5; ++bit) {
+            const uint32_t press=1u<<bit;
+            if(!(initial&press)) assert(!protection.mayWait(initial|press,0,0,true));
+            // Release/repress of even an ignored key produces a pending edge.
+            assert(!protection.mayWait(initial,press,0,true));
+            assert(!protection.mayWait(initial,0,press,true));
+        }
+    }
     using namespace StopTimerTiming;
     assert(countsForMs(32000, 1) == 8);
     assert(countsForMs(32000, 10) == 80);
@@ -27,6 +44,7 @@ int main() {
     state.valid = state.charger_online = state.gauge_online = true;
     state.fault_bits = 0;
     state.cell_mv = 3800;
+    state.soc_permille = 500;
     state.charge_state = PowerChargeState::Discharging;
     assert(state.sleepMaintenanceIntervalMs() == 5000);
     const auto battery = state;
@@ -34,9 +52,9 @@ int main() {
     assert(state.sleepMaintenanceIntervalMs() == 1000);
     state = battery; state.vbus_mv = 5000; // input detected before PG confirms it
     assert(state.sleepMaintenanceIntervalMs() == 1000);
-    state = battery; state.cell_mv = 3450;
+    state = battery; state.cell_mv = 3429; state.soc_permille = 100;
     assert(state.sleepMaintenanceIntervalMs() == 1000);
-    state = battery; state.cell_mv = 3451;
+    state = battery; state.cell_mv = 3430; state.soc_permille = 101;
     assert(state.sleepMaintenanceIntervalMs() == 5000);
     for (const auto charge : {PowerChargeState::Charging, PowerChargeState::Full,
                              PowerChargeState::Fault, PowerChargeState::Unknown}) {

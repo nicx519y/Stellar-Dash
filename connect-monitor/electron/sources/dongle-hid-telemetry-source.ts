@@ -1,6 +1,7 @@
 import { rxProfileDecoder } from "./rx-profile";
 import { parseTxMetrics } from "./rf-tx-metrics";
 import type { LinkState, MonitorEvent } from "../pipeline/types";
+import { batterySocPermille } from "../../shared/battery-soc-curve";
 
 function rfHopStateCode(state: number): string {
   const map: Record<number, string> = {
@@ -32,13 +33,6 @@ const RFH_INPUT_BATTERY_STEP_MV = 10;
 function decodeRfHopBatteryMv(code: number) {
   if (code <= 0) return 0;
   return RFH_INPUT_BATTERY_BASE_MV + (code - 1) * RFH_INPUT_BATTERY_STEP_MV;
-}
-
-function estimateSocPercent(mv: number) {
-  if (mv <= 0) return 0;
-  if (mv <= 3300) return 0;
-  if (mv >= 4200) return 100;
-  return Math.round(((mv - 3300) * 100) / 900);
 }
 
 function parseRfHopInputFrame(view: DataView, report: Uint8Array, timestampMs: number): MonitorEvent[] {
@@ -111,17 +105,22 @@ function parseRfHopInputFrame(view: DataView, report: Uint8Array, timestampMs: n
   ];
 
   if (batteryValid) {
+    // RF carries voltage in 10mV steps; apply the same curve as STM32 without
+    // changing the wire contract. Threshold precision is limited by that step.
+    const soc = batterySocPermille(batteryMv);
     events.push({
       kind: "power_status",
       timestampMs,
       h1Mv: activeBattery === "H1" ? batteryMv : 0,
       h2Mv: activeBattery === "H2" ? batteryMv : 0,
       batMv: batteryMv,
-      socPercent: estimateSocPercent(batteryMv),
+      socPercent: soc / 10,
       activeBattery,
-      chargeState: "Discharging",
+      chargeState: "Unknown",
+      socEstimated: true,
+      powerOrigin: "voltage",
       valid: true,
-      lowBattery: batteryMv > 0 && batteryMv <= 3300,
+      lowBattery: soc <= 100,
     });
   }
 
@@ -551,6 +550,28 @@ export function parseDongleHidTelemetryFrame(report: Uint8Array, timestampMs = D
 
   const view = new DataView(report.buffer, report.byteOffset, report.byteLength);
   const magic = view.getUint32(0, true);
+  if (magic === 0x31535052) {
+    // RPS1: independent, versioned main-controller power snapshot.
+    let crc = 0xffffffff;
+    for (let i=0;i<28;i++) {
+      crc ^= report[i];
+      for (let bit=0;bit<8;bit++) crc=(crc>>>1)^((0-(crc&1))&0xedb88320);
+    }
+    if (report.length!==32 || ((~crc)>>>0)!==view.getUint32(28,true) ||
+        report[4]!==1 || (report[5]&0x80)!==0 || report[21]!==0 ||
+        view.getUint16(14,true)>1000 || report[20]>4) return [];
+    const flags=report[5], cellMv=view.getUint16(12,true), age=view.getUint32(24,true);
+    const states = ["Discharging","Charging","Full","Fault","Unknown"] as const;
+    return [{kind:"power_status",timestampMs:timestampMs-age,
+      h1Mv:cellMv,h2Mv:0,batMv:cellMv,cellMv,activeBattery:"H1",
+      socPercent:view.getUint16(14,true)/10,chargeState:states[report[20]],
+      valid:(flags&1)!==0 && age<=3000,lowBattery:(flags&16)!==0,
+      vbusPresent:(flags&2)!==0,fastCharging:(flags&4)!==0,
+      socEstimated:(flags&8)!==0,socSource:(flags>>>5)&3,powerOrigin:"firmware",
+      vbusMv:view.getUint16(16,true),chargeCurrentMa:view.getUint16(18,true),
+      faultBits:view.getUint16(22,true),sampleSequence:view.getUint16(6,true),
+      sampleUptimeMs:view.getUint32(8,true),formatVersion:2}];
+  }
   if(magic===0x31505852) {
     const profile=rxProfileDecoder.parse(view,timestampMs);
     return [{kind:"packet",timestampMs,channel:"RF",direction:"RX",messageType:"RFH_RXP1",rfDiagnosticVersion:1,

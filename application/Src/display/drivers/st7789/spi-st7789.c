@@ -44,6 +44,7 @@ static volatile uint8_t g_test_phase = 0;
 static bool g_bl_tim_ready = false;
 static bool g_bl_static = false;
 static uint8_t g_bl_percent = 0u;
+static uint8_t g_bl_power_limit = 100u;
 static bool g_hw_ready = false;
 static uint16_t g_fill_color565 = 0xFFFFu;
 static SPIST7789_FramebufferFlush g_fb_flush;
@@ -629,9 +630,11 @@ void SPIST7789_SetBacklight(uint8_t percent)
 {
     if (percent > 100u) percent = 100u;
     g_bl_percent = percent;
+    if (percent > g_bl_power_limit) percent = g_bl_power_limit;
     if (g_bl_static) { backlight_gpio_drive(percent != 0u); return; }
     if (!backlight_pwm_init()) {
-        gpio_write(ST7789_BL_PORT, ST7789_BL_PIN, (percent == 0u) ? ST7789_BL_OFF_STATE : ST7789_BL_ON_STATE);
+        gpio_write(ST7789_BL_PORT, ST7789_BL_PIN,
+            (percent == 0u || g_bl_power_limit < 100u) ? ST7789_BL_OFF_STATE : ST7789_BL_ON_STATE);
         return;
     }
 
@@ -642,6 +645,7 @@ void SPIST7789_SetBacklight(uint8_t percent)
 
 void SPIST7789_SetBacklightStatic(bool enabled)
 {
+    if (g_bl_power_limit < 100u) enabled = false;
     if (enabled == g_bl_static) return;
     g_bl_static = enabled;
     if (enabled) { backlight_gpio_drive(g_bl_percent != 0u); return; }
@@ -656,6 +660,16 @@ void SPIST7789_SetBacklightStatic(bool enabled)
         init.Alternate = SPIST7789_BL_TIM_AF;
         HAL_GPIO_Init(ST7789_BL_PORT, &init);
     }
+}
+
+void SPIST7789_SetPowerLimit(uint8_t percent)
+{
+    if (percent > 100u) percent = 100u;
+    if (g_bl_power_limit == percent) return;
+    g_bl_power_limit = percent;
+    if (!g_hw_ready) return;
+    if (g_bl_static && percent < 100u) SPIST7789_SetBacklightStatic(false);
+    else SPIST7789_SetBacklight(g_bl_percent);
 }
 
 bool SPIST7789_IsBusy(void)

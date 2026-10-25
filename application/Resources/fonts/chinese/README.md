@@ -54,10 +54,10 @@ python tools/generate_screen_chinese.py --source-dir path/to/original-ttfs
 | 202 条翻译、263 个字符 × 4 字号及索引（不含对齐） | 49,102 |
 | 中英文字库 `.screen_fonts` 合计（含对齐） | 57,656 |
 | CPU 专用菜单/电池状态常量 `.ui_rodata`（DTCM） | 1,564 |
-| application.bin | 511,512 |
-| 2 MiB 固件槽位剩余 | 1,585,640 |
+| application.bin | 511,640 |
+| 2 MiB 固件槽位剩余 | 1,585,512 |
 | DTCM 堆容量（已扣除 8,192 字节栈预留） | 63,656 |
-| AXI RAM 链接余量 | 1,184 |
+| AXI RAM 链接余量 | 1,056 |
 | ITCM 链接余量 | 1,096 |
 
 字库随固件保存，启动时走已有 `.screen_fonts` 复制路径进入 DTCM；绘制不分配

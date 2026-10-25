@@ -1,6 +1,8 @@
 #include "usb_webhid_memory.h"
 #include "usb_monitor.h"
 #include "usb_device.h"
+#include "game_link_log.h"
+#include "game_log_window.h"
 
 #include <string.h>
 
@@ -961,6 +963,7 @@ static USB_WEBHID_RAM void native_input_kick(void)
         --s_native_count;
         if(now-r->received_us>USBDEV_NATIVE_MAX_AGE_US)
         {
+            XORA_LOG_CALL(++g_game_log_dropped);
             usb_monitor_drop(r->token,UM_TIMEOUT);
             continue;
         }
@@ -997,6 +1000,7 @@ USB_WEBHID_RAM bool usb_device_hw_queue_native_input(
     {
         if(s_native_count==USBDEV_NATIVE_QUEUE_DEPTH)
         {
+            XORA_LOG_CALL(++g_game_log_dropped);
             /* Keep fresh state without silently losing the old edge record. */
             usb_monitor_drop(s_native_queue[s_native_head].token,UM_OVERWRITTEN);
             s_native_head=(uint8_t)((s_native_head+1u)%USBDEV_NATIVE_QUEUE_DEPTH);
@@ -1233,7 +1237,9 @@ static bool process_control_out(void)
     }
 }
 
-static void handle_setup(void)
+/* EP0 setup is a control operation. Keep its descriptor/auth dispatch in
+ * instruction Flash instead of inlining it into the SRAM game-IN ISR. */
+static __attribute__((noinline)) void handle_setup(void)
 {
     PUSB_SETUP_REQ setup = (PUSB_SETUP_REQ)s_ep0;
     const uint8_t *descriptor;
@@ -2100,6 +2106,8 @@ static USB_WEBHID_RAM void complete_in_endpoint(uint8_t endpoint)
     switch(endpoint)
     {
     case 1u:
+        if (s_profile != USB_BOARD_PROFILE_WEB_CONFIG && s_ep1_busy)
+            XORA_LOG_CALL(++g_game_log_completed);
         if(s_native_mode && s_ep1_busy)
             usb_monitor_complete();
         if((s_profile == USB_BOARD_PROFILE_WEB_CONFIG) &&
@@ -2143,6 +2151,38 @@ static USB_WEBHID_RAM void complete_in_endpoint(uint8_t endpoint)
     default:
         break;
     }
+}
+
+void usb_device_game_log_poll(void)
+{
+    if (!XORA_LOGGING_ENABLED) return;
+    static uint32_t sampled_ms, enumeration_ms, policy_generation;
+    if(policy_generation!=g_xora_diagnostics_generation) {
+        policy_generation=g_xora_diagnostics_generation;sampled_ms=enumeration_ms=0;
+    }
+    const uint32_t now=XoraLog_TimeMs();
+    if(now-sampled_ms<5u) return;
+    sampled_ms=now;
+    if(s_profile==USB_BOARD_PROFILE_WEB_CONFIG || s_profile==USB_BOARD_PROFILE_NONE) return;
+    uint32_t irq; SYS_DisableAllIrq(&irq);
+    gl_sample p={g_game_log_received,g_game_log_completed,g_game_log_dropped,
+        g_game_log_notices,GL_ENABLED|GL_CHECK_USB,0,usb_device_game_rate(),GL_MODE_USB,(uint8_t)s_profile};
+    g_game_log_notices=0;
+    if(s_mounted) p.status|=GL_USB_READY;
+    if(s_mounted && usb_device_game_expected()) p.status|=GL_EXPECT_INPUT;
+    if(s_suspended) p.status|=GL_SUSPENDED;
+    if(s_ep1_busy || s_native_count || usb_device_game_pending()) p.status|=GL_OUTPUT_PENDING;
+    p.detail=(uint32_t)s_native_count | (uint32_t)usb_device_monitor_speed()<<8 |
+        (uint32_t)usb_device_last_fault()<<16;
+    SYS_RecoverIrq(irq);
+    // An address proves host enumeration activity; a charging cable alone
+    // must never start an enumeration-failure timer.
+    if(s_address && !s_mounted) {
+        if(!enumeration_ms) enumeration_ms=now?now:1u;
+        if(now-enumeration_ms>=5000u) p.notices|=GL_START_TIMEOUT;
+    } else enumeration_ms=0;
+    XoraLog_GameSample(&p);
+    /* Runtime logging never NAKs USB or blocks input for Flash writes. */
 }
 
 static void complete_out_endpoint(uint8_t endpoint)
@@ -2284,6 +2324,8 @@ void USB2_DEVICE_IRQHandler(void)
     }
     else if((flags & USBHS_UDIF_BUS_RST) != 0u)
     {
+        if(s_mounted && s_profile!=USB_BOARD_PROFILE_WEB_CONFIG)
+            XORA_LOG_CALL(g_game_log_notices|=GL_USB_RESET);
         s_mounted = 0u;
         s_suspended = 0u;
         s_address = 0u;

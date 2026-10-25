@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useRouterStore, Route } from './router';
-import { Flex, Center, Box, Tabs, HStack, Separator, Image } from '@chakra-ui/react';
+import { Flex, Center, Box, Tabs, HStack, Separator, Image, Grid } from '@chakra-ui/react';
 import { useLanguage } from "@/contexts/language-context";
 import {
     LuKeyboard, LuRocket, LuLightbulb, LuCpu, LuGamepad,
@@ -32,11 +32,11 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
         { id: 'keys' as Route, label: t.SETTINGS_TAB_KEYS, icon: LuKeyboard },
         { id: 'buttons-performance' as Route, label: t.SETTINGS_TAB_BUTTONS_PERFORMANCE, icon: LuRocket },
         { id: 'lighting' as Route, label: t.SETTINGS_TAB_LEDS, icon: LuLightbulb },
+        { id: 'firmware' as Route, label: t.SETTINGS_TAB_FIRMWARE, icon: LuCpu },
+        { id: 'view-logs' as Route, label: t.SETTINGS_TAB_VIEW_LOGS, icon: LuScrollText },
         ...(isAdmin ? [
             { id: 'switch-marking' as Route, label: t.SETTINGS_TAB_SWITCH_MARKING, icon: LuChartSpline },
         ] : []),
-        { id: 'firmware' as Route, label: t.SETTINGS_TAB_FIRMWARE, icon: LuCpu },
-        { id: 'view-logs' as Route, label: t.SETTINGS_TAB_VIEW_LOGS, icon: LuScrollText },
         // { id: 'button-monitor' as Route, label: '按键监控测试', icon: LuMonitor },
     ];
 
@@ -55,10 +55,12 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
         <Flex direction="column" height="100%" flex={1} >
 
             {/* 添加语言切换按钮 */}
-            <HStack
+            <Grid
+                data-testid="settings-header"
+                templateColumns={{ base: "minmax(0, 1fr)", "2xl": "minmax(0, 1fr) auto" }}
+                alignItems="center"
                 w="full"
-                gap={4}
-                flexWrap="wrap"
+                gap={2}
                 top={"8px"}
                 right={4}
                 zIndex={1}
@@ -68,6 +70,7 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
                 padding="7px 10px 7px 7px"
             >
                 <HStack justifyContent="flex-start" position="relative" minW={0} maxW="100%">
+                    <Box position="relative" flexShrink={0} w="165px" h="44px">
                     <Image
                         src="/images/xora-mono-slate.svg"
                         alt="XORA 星溯"
@@ -79,6 +82,8 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
                         flexShrink={0}
                         display="block"
                     />
+                    <Box position="absolute" bottom="-4px" right="0"><BuildVariantBadge /></Box>
+                    </Box>
                     <Tabs.Root
                         defaultValue={currentRoute}
                         value={currentRoute}
@@ -115,14 +120,15 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
                         </Tabs.List>
                     </Tabs.Root>
                 </HStack>
-                <HStack inert={logOperation ? true : undefined} opacity={logOperation ? 0.5 : 1} justifyContent="flex-end" gap="10px" ml="auto" flexWrap="wrap" maxW="100%">
-                    <BuildVariantBadge />
-                    {dataIsReady && <FinishConfigButton disabled={finishConfigDisabled || configEditingBlocked} />}
+                <HStack inert={logOperation ? true : undefined} opacity={logOperation ? 0.5 : 1} justifyContent="flex-end" gap="10px" w="full" minW={0}>
+                    <Box flex={{ base: 1, sm: "0 0 300px" }} minW={0} visibility={dataIsReady ? "visible" : "hidden"} aria-hidden={!dataIsReady}>
+                        <FinishConfigButton disabled={!dataIsReady || finishConfigDisabled || configEditingBlocked} />
+                    </Box>
                     <UserAuthControl />
                     <LanguageSwitcher />
                     {/* <ColorModeSwitcher /> */}
                 </HStack>
-            </HStack>
+            </Grid>
 
 
             {/* Firmware owns its operation controls, including authorization,

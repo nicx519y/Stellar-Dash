@@ -2,6 +2,7 @@
 #include "device_command_message.hpp"
 class CommonCommandHandler {
 public:
+    DeviceCommandResponse handleDiagnosticsPolicy(const DeviceCommandRequest&);
     DeviceCommandResponse handleClearDeviceLogs(const DeviceCommandRequest&);
     DeviceCommandResponse handleGetDeviceLogsPage(const DeviceCommandRequest&);
     DeviceCommandResponse handleGetDeviceLogsList(const DeviceCommandRequest&);

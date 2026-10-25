@@ -299,8 +299,8 @@ function sanitizeDebugConfig(value: unknown): DebugConfig {
     : null;
   const autoHopEnabled = cfg?.autoHopEnabled !== false || manualChannel === null;
   return {
-    hidTelemetryEnabled: Boolean(cfg?.hidTelemetryEnabled),
-    latencyMeasurementEnabled: cfg?.latencyMeasurementEnabled === true,
+    hidTelemetryEnabled: true,
+    latencyMeasurementEnabled: true,
     hidPeriodMs,
     sourceMode: cfg?.sourceMode === "USB" ? "USB" : "RF24G",
     autoHopEnabled,
