@@ -163,8 +163,7 @@ int main(int argc,char** argv) {
     for(unsigned lang=0;lang<2;++lang) {
     ScreenText_SetLanguage(lang);
     for(unsigned light=0;light<2;++light) {
-        const uint32_t bg=light?0xffffffu:0u;
-        ScreenUiStyle style{bg,light?0u:0xffffffu,ScreenUI_HighlightFromBg(bg,32),ScreenUI_HighlightFromBg(bg,64)};
+        const ScreenUiStyle style=ScreenUI_ColdSteelStyle(light);
         auto reset=[&] {ST7789_FillRect(&lcd,0,0,320,172,style.bg);texts.clear();};
         auto page=[&](const char* name,const char* title,std::initializer_list<const char*> lines) {
             reset();std::vector<const char*> v(lines);
@@ -205,7 +204,10 @@ int main(int argc,char** argv) {
         for(const auto& t:texts) assert(t.x+ScreenText_Width(t.value.c_str(),t.font)<=280);
         save(dir,light?"light-menu":"dark-menu");
         reset();ScreenDetailRender_Slider(&lcd,"Screen Brightness",75,style);
-        assert(texts.size()==2 && texts[1].value=="75%");save(dir,light?"light-slider":"dark-slider");
+        assert(texts.size()==2 && texts[1].value=="75%");
+        ScreenUI_DrawSliderControls(&lcd,style.icon,style.bg);
+        ScreenUI_DrawActionIcon(&lcd,300,85,ScreenActionIcon::Confirm,style.accent,style.bg);
+        save(dir,light?"light-slider":"dark-slider");
         const char* timerValues[]={"OFF","10s","30s","1min","2min","5min"};
         for(const char* timerTitle:{"Screen Standby","Auto Sleep"}) for(unsigned step=0;step<6;++step) {
             reset();ScreenDetailRender_Slider(&lcd,timerTitle,step,style,5,timerValues[step]);
@@ -224,7 +226,7 @@ int main(int argc,char** argv) {
         for(unsigned i=1;i<texts.size();++i)actual+=compact(texts[i].value);
         assert(actual==expected);save(dir,light?"light-popup":"dark-popup");
         reset();const auto layout=ScreenUI_StatusBarLayout();
-        ScreenUI_DrawStringCenteredInBox(&lcd,0,layout.profileY,40,14,"P16",style.text,style.bg,SPI_SCREEN_PROFILE_TEXT_SCALE);
+        ScreenUI_DrawStringCenteredInBox(&lcd,0,layout.profileY,40,14,"P16",style.accent,style.bg,SPI_SCREEN_PROFILE_TEXT_SCALE);
         assert(texts[0].x==8 && texts[0].y==16 && texts[0].font==SCREEN_FONT_BADGE_BOLD);
         render_platform_badge(&lcd,ScreenMain_InputModeAbbrev(INPUT_MODE_XINPUT),style.text,style.bg);
         ScreenUI_DrawStringCenteredInBox(&lcd,0,layout.connectionY,40,32,"USB",style.text,style.bg,2);
@@ -280,7 +282,7 @@ void ST7789_DrawString(ST7789_Handle*,uint16_t,uint16_t,const char*,uint32_t,uin
                         f"-I{temp}", f"-I{ROOT / 'application/Inc/display'}",
                         f"-I{ROOT / 'application/Inc/display/drivers/st7789'}", str(cpp),
                         f"-I{ROOT / 'application/Inc/support'}",
-                        *[str(UI / f) for f in ("spi_screen_ui_common.cpp", "spi_screen_detail_render_helpers.cpp", "spi_screen_timed_popup.cpp")],
+                        *[str(UI / f) for f in ("spi_screen_ui_common.cpp", "spi_screen_theme.cpp", "spi_screen_detail_render_helpers.cpp", "spi_screen_timed_popup.cpp")],
                         str(DRIVER / "screen_text.c"),
                         "-o", str(exe)], check=True, timeout=120)
             preview = Path(os.environ.get("XORA_SCREEN_PREVIEW_DIR", temp / "preview"))

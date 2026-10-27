@@ -78,6 +78,7 @@ void ScreenDetailSocd_OnConfirm(uint8_t index) {
         g_socd_should_exit_after_confirm = false;
         return;
     }
+    if (index == current_socd_index()) return;
     if (is_competition_profile_active() && index != (uint8_t)SOCDMode::SOCD_MODE_NEUTRAL) {
         show_socd_competition_warning();
         g_socd_should_exit_after_confirm = false;

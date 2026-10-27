@@ -33,6 +33,10 @@ struct ScreenUiStyle {
     uint32_t text;
     uint32_t selBg;
     uint32_t okBg;
+    uint32_t mutedText = text;
+    uint32_t icon = text;
+    uint32_t accent = text;
+    uint32_t track = selBg;
 };
 
 uint32_t ScreenUI_EaseOutCubic(uint32_t t, uint32_t d);

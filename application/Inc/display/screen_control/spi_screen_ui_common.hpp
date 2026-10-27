@@ -14,6 +14,7 @@ uint32_t ScreenUI_BlendToWhite(uint32_t rgb, uint8_t alpha255);
 uint32_t ScreenUI_BlendToBlack(uint32_t rgb, uint8_t alpha255);
 uint32_t ScreenUI_HighlightFromBg(uint32_t bg, uint8_t amount);
 uint32_t ScreenUI_MutedTextForBg(uint32_t fg, uint32_t bg, uint8_t amount);
+ScreenUiStyle ScreenUI_ColdSteelStyle(bool light, uint32_t accent = 0xB5ED68u);
 
 uint16_t ScreenUI_CharCellW(uint8_t scale);
 uint16_t ScreenUI_CharCellH(uint8_t scale);
@@ -25,6 +26,10 @@ const char* ScreenUI_NextTextRow(const char* text, char* row, uint16_t maxChars,
 
 void ScreenUI_DrawStringCenteredInBox(ST7789_Handle* lcd, uint16_t x, uint16_t y, uint16_t w, uint16_t h, const char* s, uint32_t fg, uint32_t bg, uint8_t scale);
 void ScreenUI_DrawScrollArrow(ST7789_Handle* lcd, uint16_t cx, uint16_t cy, bool up, uint32_t color);
+void ScreenUI_DrawSliderControls(ST7789_Handle* lcd, uint32_t fg, uint32_t bg);
+// Recolor the existing dark RGB565 icon as an antialiased mask, without a new bitmap.
+void ScreenUI_DrawTintedIcon(ST7789_Handle* lcd, uint16_t x, uint16_t y, uint16_t w, uint16_t h,
+                            const uint8_t* rgb565, uint32_t fg, uint32_t bg);
 void ScreenUI_DrawBackIcon(ST7789_Handle* lcd, uint16_t x, uint16_t y, uint32_t color);
 
 enum class ScreenActionIcon : uint8_t {

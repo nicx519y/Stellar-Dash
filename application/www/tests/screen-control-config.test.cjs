@@ -9,6 +9,25 @@ const path = require('node:path');
 const { SCREEN_FEATURE_IDS, SCREEN_LANGUAGE_MENU_ID } = require('../lib/screen-control-config.ts');
 const { UI_TEXT, UI_TEXT_ZH } = require('../types/gamepad-config.ts');
 
+test('highlight color survives patches and backups, validates atomically and detects old firmware', () => {
+  for (const color of [0, 0xffffff, 0x52a8ff]) {
+    const current = normalizeScreenControl({ ...DEFAULT_SCREEN_CONTROL_CONFIG, highlightColor: color }, true);
+    assert.equal(current.highlightSupported, true);
+    assert.equal(applyScreenControlPatch(current, { brightness: 30 }).highlightColor, color);
+    assert.equal(applyScreenControlPatch(current, JSON.parse(JSON.stringify(current)), true).highlightColor, color);
+    for (const invalid of [-1, 0x1000000, 1.5, NaN, Infinity, 'blue', null]) {
+      assert.throws(() => applyScreenControlPatch(current, { highlightColor: invalid }), /Invalid screen highlight color/);
+      assert.equal(current.highlightColor, color);
+    }
+    assert.equal(applyScreenControlPatch(current, {}, true).highlightColor, 0xb5ed68);
+  }
+  const old = { ...DEFAULT_SCREEN_CONTROL_CONFIG }; delete old.highlightColor;
+  const normalized = normalizeScreenControl(old, true);
+  assert.equal(normalized.highlightSupported, false);
+  assert.equal(normalizeScreenControl(normalized).highlightSupported, false);
+  assert.equal(normalized.standbySupported, true);
+});
+
 test('web menu labels, IDs and default order match the current LCD catalog', () => {
   const lcd = fs.readFileSync(path.join(__dirname, '../../Src/display/screen_control/spi_screen_main_list.cpp'), 'utf8');
   const zh = JSON.parse(fs.readFileSync(path.join(__dirname, '../../Resources/fonts/chinese/screen_zh.json'), 'utf8'));

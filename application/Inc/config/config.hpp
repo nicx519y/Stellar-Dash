@@ -151,7 +151,7 @@ typedef struct
     uint8_t standbyDisplay;          // 待机显示：0 ScreenOff, 1 BackgroundImage, 2 ButtonLayout
     uint16_t standbyTimeoutSeconds;  // 占用原 reserved0[2]，保持持久化布局
     uint8_t screenStyle;             // 屏幕风格：0 Dark, 1 Light
-    uint8_t reservedStyle[7];        // 保留旧颜色字段占位，用于兼容迁移
+    uint8_t reservedStyle[7];        // schema/屏保/语言/高亮色；布局见 screen_control_config.hpp
     char backgroundImageId[32];      // 背景图片ID；当前仅允许已验证的 USER_IMAGE
     uint16_t currentPageId;          // 当前页面ID
     union {

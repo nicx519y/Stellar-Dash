@@ -41,10 +41,13 @@ void ScreenDetailAmbientEffect_OnConfirm(uint8_t index) {
   if (!p || index >= n)
     return;
   if (!index) {
+    if (p->ledsConfigs.aroundLedSyncToMainLed) return;
     p->ledsConfigs.aroundLedSyncToMainLed = true;
     ScreenUI_RequestDeferredSave(2000u);
     return;
   }
+  const auto current = LightingResources::reference(p, true);
+  if (!p->ledsConfigs.aroundLedSyncToMainLed && !memcmp(&refs[index - 1], &current, sizeof(current))) return;
   if (LightingResources::select(p, true, refs[index - 1], false)) {
     p->ledsConfigs.aroundLedSyncToMainLed = false;
     ScreenUI_RequestDeferredSave(2000u);

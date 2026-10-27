@@ -2,6 +2,9 @@
 #include "screen_font.h"
 #include <string.h>
 
+// UI helpers are outside the input/ISR path. Keep their shared ITCM code compact.
+#pragma GCC optimize ("Os")
+
 void ScreenUI_DrawScrollArrow(ST7789_Handle* lcd, uint16_t cx, uint16_t cy, bool up, uint32_t color) {
     for (uint16_t row = 0; row < 6; ++row) {
         const uint16_t y = up ? cy - 3 + row : cy + 3 - row;
@@ -87,7 +90,7 @@ void iconLine(ST7789_Handle* lcd, int x, int y, int x1, int y1, uint32_t color) 
 }
 }
 
-void ScreenUI_DrawActionIcon(ST7789_Handle* lcd, uint16_t cx, uint16_t cy, ScreenActionIcon icon, uint32_t fg, uint32_t bg) {
+__attribute__((optimize("Os"))) void ScreenUI_DrawActionIcon(ST7789_Handle* lcd, uint16_t cx, uint16_t cy, ScreenActionIcon icon, uint32_t fg, uint32_t bg) {
     if (!lcd || icon == ScreenActionIcon::None) return;
     const int x = int(cx) - 12, y = int(cy) - 12;
     ST7789_FillRect(lcd, x, y, 24, 24, bg);

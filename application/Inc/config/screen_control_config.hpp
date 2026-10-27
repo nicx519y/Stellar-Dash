@@ -5,8 +5,21 @@
 
 // Keep the twelve-byte on-device order and the old color storage unchanged.
 // reservedStyle[0..2]: schema, standby enable, LCD language (0 English, 1 Chinese).
+// reservedStyle[3..6]: highlight marker and RGB888; no storage size/schema change.
 namespace ScreenConfig {
 constexpr uint8_t kPreviousSchema = 0xA1, kSchema = 0xA3;
+constexpr uint8_t kHighlightMarker = 0xC1;
+constexpr uint32_t kDefaultHighlight = 0xB5ED68u;
+inline uint32_t highlightColor(const ScreenControlConfig& sc) {
+    if (sc.reservedStyle[0] != kSchema || sc.reservedStyle[3] != kHighlightMarker) return kDefaultHighlight;
+    return (uint32_t(sc.reservedStyle[4]) << 16u) | (uint32_t(sc.reservedStyle[5]) << 8u) | sc.reservedStyle[6];
+}
+inline void setHighlightColor(ScreenControlConfig& sc, uint32_t color) {
+    sc.reservedStyle[3] = kHighlightMarker;
+    sc.reservedStyle[4] = uint8_t(color >> 16u);
+    sc.reservedStyle[5] = uint8_t(color >> 8u);
+    sc.reservedStyle[6] = uint8_t(color);
+}
 constexpr uint8_t kLanguage = 20;
 constexpr uint8_t kConnection = 15;
 constexpr uint8_t kLed = 13, kPower = 14;
@@ -28,8 +41,9 @@ constexpr uint16_t kTopLevelMask = [] {
 inline bool isTopLevel(uint16_t id) {
     return id == kLanguage || (id < 16u && (kTopLevelMask & (1u << id)) != 0u);
 }
-inline void normalize(ScreenControlConfig& sc) {
+__attribute__((optimize("Os"))) inline void normalize(ScreenControlConfig& sc) {
     const uint8_t savedLanguage = language(sc);
+    const uint32_t savedHighlight = highlightColor(sc);
     const bool legacy = sc.reservedStyle[0] != kSchema && sc.reservedStyle[0] != 0xA2 && sc.reservedStyle[0] != kPreviousSchema;
     if (legacy) {
         setEnabled(sc, sc.standbyDisplay == 1u || sc.standbyDisplay == 2u);
@@ -41,7 +55,7 @@ inline void normalize(ScreenControlConfig& sc) {
     sc.reservedStyle[0] = kSchema;
     setEnabled(sc, enabled(sc));
     setLanguage(sc, savedLanguage);
-    memset(sc.reservedStyle + 3, 0, sizeof(sc.reservedStyle) - 3);
+    setHighlightColor(sc, savedHighlight);
     if (sc.standbyDisplay > 2u) { sc.standbyDisplay = 0; setEnabled(sc, false); }
     sc.standbyTimeoutSeconds = normalizeScreenStandbyTimeoutSeconds(sc.standbyTimeoutSeconds);
     sc.featuresMask &= ~kLegacyLedMask;

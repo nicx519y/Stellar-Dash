@@ -3,7 +3,8 @@
 import { FeedbackSlot } from '@/components/ui/feedback-slot';
 import { normalizeScreenControl, SCREEN_FEATURE_IDS, SCREEN_LANGUAGE_MENU_ID } from '@/lib/screen-control-config';
 import React, { useEffect, useMemo, useState } from 'react';
-import { VStack, HStack, Table, Box, Text, RadioCard, RadioGroup } from '@chakra-ui/react';
+import { VStack, HStack, Table, Box, Text, RadioCard, RadioGroup, parseColor } from '@chakra-ui/react';
+import { ColorPickerRoot, ColorPickerLabel, ColorPickerControl, ColorPickerInput, ColorPickerTrigger, ColorPickerContent, ColorPickerArea, ColorPickerChannelSlider } from '@/components/ui/color-picker';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { useGamepadFields } from '@/contexts/gamepad-config-context';
@@ -57,6 +58,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
     const standbyTimeoutDraftRef = React.useRef(standbyTimeoutSeconds);
     standbyTimeoutDraftRef.current = standbyTimeoutSeconds;
     const [screenStyle, setScreenStyle] = useState<ScreenStyle>(screenControl.screenStyle ?? 'dark');
+    const [highlightColor, setHighlightColor] = useState(screenControl.highlightColor ?? 0xB5ED68);
     const [backgroundImageId, setBackgroundImageId] = useState<string>(screenControl.backgroundImageId ?? '');
     const [currentPageId, setCurrentPageId] = useState<string>(String(screenControl.currentPageId ?? 0));
     const [features, setFeatures] = useState(
@@ -81,6 +83,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
         setStandbyDisplay(screenControl.standbyDisplay ?? 'screenOff');
         setStandbyTimeoutSeconds(normalizeScreenStandbyTimeout(screenControl.standbyTimeoutSeconds));
         setScreenStyle(screenControl.screenStyle ?? 'dark');
+        setHighlightColor(screenControl.highlightColor ?? 0xB5ED68);
         setBackgroundImageId(screenControl.backgroundImageId ?? '');
         setCurrentPageId(String(screenControl.currentPageId ?? 0));
         setFeatures(withRequiredWebConfigEntry(JSON.parse(featuresSnapshot) as ScreenControlFeatures));
@@ -88,7 +91,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
     // Live reads may return a fresh object while the slider is being dragged.
     // Only replace the local draft when actual configuration values change.
     }, [screenControl.brightness, screenControl.standbyEnabled, screenControl.standbyDisplay,
-        screenControl.standbyTimeoutSeconds, screenControl.screenStyle, screenControl.backgroundImageId,
+        screenControl.standbyTimeoutSeconds, screenControl.screenStyle, screenControl.highlightColor, screenControl.backgroundImageId,
         screenControl.currentPageId, featuresSnapshot, featuresOrderSnapshot]);
 
     const nextConfig: ScreenControlConfig = useMemo(() => {
@@ -102,12 +105,14 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
             standbySupported: screenControl.standbySupported,
             standbyTimeoutSeconds,
             screenStyle,
+            highlightColor,
+            highlightSupported: screenControl.highlightSupported,
             backgroundImageId,
             currentPageId: pid,
             features,
             featuresOrder,
         };
-    }, [brightness, standbyEnabled, screenControl.language, screenControl.standbySupported, standbyDisplay, standbyTimeoutSeconds, screenStyle, backgroundImageId, currentPageId, features, featuresOrder]);
+    }, [brightness, standbyEnabled, screenControl.language, screenControl.standbySupported, screenControl.highlightSupported, standbyDisplay, standbyTimeoutSeconds, screenStyle, highlightColor, backgroundImageId, currentPageId, features, featuresOrder]);
 
     const commitUiChange = async (next: ScreenControlConfig) => {
         try {
@@ -214,6 +219,30 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                 >
                     {t.SETTINGS_SCREEN_CONTROL_STYLE_LABEL}
                 </Switch>
+
+                <VStack align="stretch" gap={2}>
+                    <ColorPickerRoot size="sm" maxW="240px"
+                        value={parseColor(`#${highlightColor.toString(16).padStart(6, '0')}`)}
+                        disabled={disabled || screenControl.highlightSupported === false}
+                        onValueChange={({ value }) => {
+                            const color = parseInt(value.toString('hex').slice(1, 7), 16);
+                            setHighlightColor(color);
+                            void commitUiChange({ ...nextConfig, highlightColor: color });
+                        }}
+                    >
+                        <ColorPickerLabel>{t.SETTINGS_SCREEN_CONTROL_HIGHLIGHT}</ColorPickerLabel>
+                        <ColorPickerControl>
+                            <ColorPickerInput aria-label={t.SETTINGS_SCREEN_CONTROL_HIGHLIGHT} />
+                            <ColorPickerTrigger aria-label={t.SETTINGS_SCREEN_CONTROL_HIGHLIGHT} />
+                        </ColorPickerControl>
+                        <ColorPickerContent maxW="calc(100vw - 32px)">
+                            <ColorPickerArea />
+                            <ColorPickerChannelSlider channel="hue" aria-label={t.SETTINGS_SCREEN_CONTROL_HIGHLIGHT} />
+                        </ColorPickerContent>
+                    </ColorPickerRoot>
+                    <Text fontSize="sm" color="fg.muted">{screenControl.highlightSupported === false
+                        ? t.SETTINGS_SCREEN_CONTROL_HIGHLIGHT_UPDATE : t.SETTINGS_SCREEN_CONTROL_HIGHLIGHT_HELP}</Text>
+                </VStack>
 
                 <Slider
                     size="sm"

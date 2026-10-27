@@ -58,6 +58,7 @@ bool ScreenDetailTournament_OnConfirm(uint8_t index) {
     APP_DBG("[SCREEN][RATE] confirm index:%u", (unsigned int)index);
     if (index >= reportRateCount()) return false;
     const ReportRateItem& item = kReportRates[index];
+    if (item.rate == STORAGE_MANAGER.getWirelessReportRate()) return true;
     if (!BOARD_MODE.isStable()) {
         return false;
     }

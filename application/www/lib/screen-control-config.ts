@@ -8,6 +8,7 @@ export const SCREEN_FEATURE_IDS: Record<ScreenControlFeatureKey, number> = {
 export const SCREEN_LANGUAGE_MENU_ID = 20;
 const legacyLedKeys = ['ledBrightnessAdjust', 'ledEffectSwitch', 'ambientBrightnessAdjust', 'ambientEffectSwitch'];
 const record = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+const validHighlight = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 0xFFFFFF;
 
 /** Normalize storage/backups; live reads additionally remember firmware capability. */
 export function normalizeScreenControl(value: unknown, live = false): ScreenControlConfig {
@@ -37,6 +38,8 @@ export function normalizeScreenControl(value: unknown, live = false): ScreenCont
   return {
     ...defaults, ...raw,
     language: raw.language === 'zh-CN' ? 'zh-CN' : 'en',
+    highlightColor: validHighlight(raw.highlightColor) ? raw.highlightColor : defaults.highlightColor,
+    highlightSupported: live ? validHighlight(raw.highlightColor) && raw.highlightSupported !== false : raw.highlightSupported !== false,
     standbyEnabled: raw.standbyDisplay === 'none' ? false : typeof raw.standbyEnabled === 'boolean' ? raw.standbyEnabled : raw.standbyDisplay === 'backgroundImage' || raw.standbyDisplay === 'buttonLayout',
     standbyDisplay: raw.standbyDisplay === 'backgroundImage' || raw.standbyDisplay === 'buttonLayout' ? raw.standbyDisplay : 'screenOff',
     standbyTimeoutSeconds: normalizeScreenStandbyTimeout(raw.standbyTimeoutSeconds),
@@ -46,6 +49,7 @@ export function normalizeScreenControl(value: unknown, live = false): ScreenCont
 }
 
 export function applyScreenControlPatch(current: ScreenControlConfig, patch: Record<string, unknown>, importing = false): ScreenControlConfig {
+  if (patch.highlightColor !== undefined && !validHighlight(patch.highlightColor)) throw new Error('Invalid screen highlight color');
   if (patch.language !== undefined && patch.language !== 'en' && patch.language !== 'zh-CN') throw new Error('Invalid screen language');
   if (patch.standbyEnabled !== undefined && typeof patch.standbyEnabled !== 'boolean') throw new Error('Invalid standbyEnabled');
   if (patch.standbyDisplay !== undefined && !['none', 'screenOff', 'backgroundImage', 'buttonLayout'].includes(patch.standbyDisplay as string)) throw new Error('Invalid standby display');
@@ -56,6 +60,7 @@ export function applyScreenControlPatch(current: ScreenControlConfig, patch: Rec
   const legacyFeatures = legacyLedKeys.some(key => key in features) && !('ledSetting' in features);
   const merged = { ...current, ...patch, features: { ...current.features, ...features } } as Record<string, unknown>;
   if (importing && patch.language === undefined) merged.language = 'en';
+  if (importing && patch.highlightColor === undefined) merged.highlightColor = DEFAULT_SCREEN_CONTROL_CONFIG.highlightColor;
   if (legacyFeatures) delete (merged.features as Record<string, unknown>).ledSetting;
   if (importing && patch.standbyEnabled === undefined && patch.standbyDisplay !== undefined) delete merged.standbyEnabled;
   return normalizeScreenControl(merged);

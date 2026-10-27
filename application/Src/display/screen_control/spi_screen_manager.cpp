@@ -49,13 +49,16 @@ extern "C" {
 
 extern "C" uint32_t HAL_GetTick(void);
 
+// Screen management runs in the main loop; minimize code within the fixed RAM budget.
+#pragma GCC optimize ("Os")
+
 static ST7789_Handle g_lcd;
 static bool g_inited = false;
 static uint32_t g_okFlashUntilMs = 0;
 static uint32_t g_cfgBg = 0;
 static uint32_t g_cfgText = 0;
-static uint32_t g_cfgSelBg = 0;
 static uint32_t g_cfgOkBg = 0;
+static ScreenUiStyle g_style = ScreenUI_ColdSteelStyle(false);
 static uint8_t g_cfgBrightness = 100;
 static uint8_t g_previewBrightness = 100;
 static bool g_brightnessPreviewActive = false;
@@ -269,16 +272,12 @@ static uint8_t battery_animated_soc(uint8_t baseSoc, uint32_t nowMs) {
                      ((remaining * phaseMs + (sweepMs / 2u)) / sweepMs));
 }
 
-static bool screen_style_is_light(void) {
-    return STORAGE_MANAGER.config.screenControl.screenStyle == SCREEN_STYLE_LIGHT;
-}
-
 static const char* get_connection_mode_icon_name(void) {
     if (MainRuntime_IsTxIspActive()) return nullptr;
     if (CONNECTION_MANAGER.getMode() == ConnectionMode::CONNECTION_MODE_USB) {
-        return screen_style_is_light() ? "USB_light" : "USB_dark";
+        return "USB_dark";
     }
-    return screen_style_is_light() ? "wireless_light" : "wireless_dark";
+    return "wireless_dark";
 }
 
 static bool ensure_assets_mmap(void) {
@@ -301,7 +300,8 @@ static bool render_centered_asset_icon(ST7789_Handle* lcd,
 
     const uint16_t drawX = (info.width < w) ? (uint16_t)(x + (w - info.width) / 2u) : x;
     const uint16_t drawY = (info.height < h) ? (uint16_t)(y + (h - info.height) / 2u) : y;
-    ST7789_DrawBitmap(lcd, drawX, drawY, info.width, info.height, info.data, ST7789_BITMAP_RGB565_LE, (uint32_t)info.width * 2u);
+    ScreenUI_DrawTintedIcon(lcd, drawX, drawY, info.width, info.height, static_cast<const uint8_t*>(info.data),
+                            g_style.icon, g_style.bg);
     return true;
 }
 
@@ -360,7 +360,7 @@ static uint32_t get_gamepad_activity_mask() {
     return GPIO_BTNS_WORKER.getVirtualPinMask() | ADC_BTNS_WORKER.getVirtualPinMask();
 }
 
-static void refresh_screen_cfg_cache(void) {
+__attribute__((optimize("Os"))) static void refresh_screen_cfg_cache(void) {
     const ScreenControlConfig& sc = STORAGE_MANAGER.config.screenControl;
     ScreenText_SetLanguage(ScreenConfig::language(sc));
     const bool webConfigAllowed = BOARD_MODE.isWebConfigAllowed();
@@ -369,13 +369,14 @@ static void refresh_screen_cfg_cache(void) {
         g_menuCfgDirty = true;
     }
 
-    uint32_t bg = (sc.screenStyle == SCREEN_STYLE_LIGHT) ? 0xFFFFFFu : 0x000000u;
-    uint32_t text = (sc.screenStyle == SCREEN_STYLE_LIGHT) ? 0x000000u : 0xFFFFFFu;
-    if (bg != g_cfgBg || text != g_cfgText) {
-        g_cfgBg = bg;
-        g_cfgText = text;
-        g_cfgSelBg = ScreenUI_HighlightFromBg(bg, 32u);
-        g_cfgOkBg = ScreenUI_HighlightFromBg(bg, 64u);
+    const auto nextStyle = ScreenUI_ColdSteelStyle(sc.screenStyle == SCREEN_STYLE_LIGHT, ScreenConfig::highlightColor(sc));
+    if (nextStyle.bg != g_cfgBg || nextStyle.accent != g_style.accent) {
+        g_style = nextStyle;
+        g_cfgBg = g_style.bg;
+        g_cfgText = g_style.text;
+        g_cfgOkBg = g_style.okBg;
+        g_menu_full_refresh_pending = true;
+        ScreenStandby_Repaint();
     }
 
     g_cfgStandbyEnabled = ScreenConfig::enabled(sc);
@@ -427,7 +428,7 @@ static bool boot_mode_to_detail_menu(BootMode mode, uint8_t* outMenuId) {
     return false;
 }
 
-void SPIScreenManager::setup() {
+__attribute__((optimize("Os"))) void SPIScreenManager::setup() {
     if (g_inited) {
         APP_STAGE("S01", "screen setup already complete");
         return;
@@ -570,7 +571,7 @@ bool SPIScreenManager::menuNext() {
     return true;
 }
 
-void SPIScreenManager::handleInput(uint32_t nowMs, int8_t det, bool clicked, bool longPressed) {
+__attribute__((optimize("Os"))) void SPIScreenManager::handleInput(uint32_t nowMs, int8_t det, bool clicked, bool longPressed) {
     if (animActive && tick_expired(nowMs, animStartMs + SPI_SCREEN_ANIM_MS)) {
         animActive = false;
     }
@@ -930,7 +931,7 @@ __attribute__((optimize("Os"))) void SPIScreenManager::renderFrame() {
         g_firmwareRecoveryPage=FirmwareRecoveryPage::Details;showFirmwareRecovery();
     }
     renderBars();
-    ScreenUiStyle style = {g_cfgBg, g_cfgText, g_cfgSelBg, g_cfgOkBg};
+    const ScreenUiStyle& style = g_style;
     if (ScreenTimedPopup_IsVisible(&g_actionPopup)) {
         ScreenTimedPopup_Render(&g_actionPopup, &g_lcd, style);
     } else if (g_inDetail) {
@@ -991,12 +992,12 @@ __attribute__((optimize("Os"))) void SPIScreenManager::renderBars() {
 
     char token[6] = "P??";
     if (currentProfileIdx != 0xFF) snprintf(token, sizeof(token), "P%02u", (unsigned)(currentProfileIdx + 1u));
-    ScreenUI_DrawStringCenteredInBox(&g_lcd, 0, layout.profileY, leftW, profileH, token, textColor, barBg, profileScale);
-    render_platform_badge(&g_lcd, mode, textColor, barBg);
+    ScreenUI_DrawStringCenteredInBox(&g_lcd, 0, layout.profileY, leftW, profileH, token, g_style.accent, barBg, profileScale);
+    render_platform_badge(&g_lcd, mode, g_style.icon, barBg);
     if (!render_centered_asset_icon(&g_lcd, 0, layout.connectionY, leftW, statusIconH, get_connection_mode_icon_name())) {
-        ScreenUI_DrawStringCenteredInBox(&g_lcd, 0, layout.connectionY, leftW, statusIconH, get_connection_mode_label(), textColor, barBg, tokenScale);
+        ScreenUI_DrawStringCenteredInBox(&g_lcd, 0, layout.connectionY, leftW, statusIconH, get_connection_mode_label(), g_style.icon, barBg, tokenScale);
     }
-    render_left_battery_icon(&g_lcd, leftW, layout.batteryY, textColor, barBg, nowMs);
+    render_left_battery_icon(&g_lcd, leftW, layout.batteryY, g_style.icon, barBg, nowMs);
 
     if(g_firmwareRecoveryVisible && ScreenTimedPopup_IsVisible(&g_actionPopup)){
         const bool checking=g_firmwareRecoveryPage==FirmwareRecoveryPage::Checking;
@@ -1004,19 +1005,18 @@ __attribute__((optimize("Os"))) void SPIScreenManager::renderBars() {
             ScreenUI_DrawStringCenteredInBox(&g_lcd,rightX,topY,rightW,areaH,checking?"Cancel":"Back",textColor,barBg,1u);
         ScreenUI_DrawActionIcon(&g_lcd, rightX + rightW / 2u, midY + areaH / 2u,
             checking ? ScreenActionIcon::Wait : g_firmwareRecoveryPage == FirmwareRecoveryPage::Confirm ? ScreenActionIcon::Confirm : ScreenActionIcon::Check,
-            textColor, barBg);
+            g_style.accent, barBg);
         return;
     }
     if (ScreenTimedPopup_IsVisible(&g_actionPopup)) {
         if (!g_actionPopup.persistent)
-            ScreenUI_DrawActionIcon(&g_lcd, rightX + rightW / 2u, midY + areaH / 2u, ScreenActionIcon::Close, textColor, barBg);
+            ScreenUI_DrawActionIcon(&g_lcd, rightX + rightW / 2u, midY + areaH / 2u, ScreenActionIcon::Close, g_style.accent, barBg);
         return;
     }
     const ScreenDetailKind kind = g_inDetail ? ScreenDetail_Kind(g_detailMenuId) : SCREEN_DETAIL_LIST;
     // Lists draw their own arrows using the same live cursor/count as their rows.
     if (kind == SCREEN_DETAIL_SLIDER) {
-        ScreenUI_DrawScrollArrow(&g_lcd, rightX + rightW / 2u, layout.topArrowY, true, textColor);
-        ScreenUI_DrawScrollArrow(&g_lcd, rightX + rightW / 2u, layout.bottomArrowY, false, textColor);
+        ScreenUI_DrawSliderControls(&g_lcd, g_style.icon, barBg);
     } else if (g_inDetail && kind != SCREEN_DETAIL_LIST) {
         ScreenUI_DrawStringCenteredInBox(&g_lcd, rightX, topY, rightW, areaH,
             ScreenDetail_BackLabel(g_detailMenuId), textColor, barBg, 1u);
@@ -1025,7 +1025,7 @@ __attribute__((optimize("Os"))) void SPIScreenManager::renderBars() {
     const uint8_t selectedId = menuIndex < menuCount ? menuIds[menuIndex] : 255u;
     const char* action = g_inDetail ? ScreenDetail_ConfirmLabel(g_detailMenuId, g_detailIndex)
         : menuCount == 0 ? "" : (selectedId == 9u || selectedId == 10u) ? "Start" : "Open";
-    ScreenUI_DrawActionIcon(&g_lcd, rightX + rightW / 2u, midY + areaH / 2u, ScreenUI_ActionIcon(action), textColor, okBg);
+    ScreenUI_DrawActionIcon(&g_lcd, rightX + rightW / 2u, midY + areaH / 2u, ScreenUI_ActionIcon(action), g_style.accent, okBg);
 }
 
 
@@ -1165,7 +1165,7 @@ __attribute__((optimize("Os"))) void SPIScreenManager::renderBatteryNotice(uint3
     ST7789_FillScreen(&g_lcd, g_cfgBg);
     update_battery_ui_cache(now);
     render_left_battery_icon(&g_lcd, SPI_SCREEN_LEFT_BAR_W,
-        ScreenUI_StatusBarLayout().batteryY, g_cfgText, g_cfgBg, now);
+        ScreenUI_StatusBarLayout().batteryY, g_style.icon, g_cfgBg, now);
     const PowerSnapshot power = POWER_MANAGER.getSnapshot();
     const char* lines[2] = {"Connect power", "Battery is low"};
     const char* title = "Low Battery";
@@ -1187,7 +1187,7 @@ __attribute__((optimize("Os"))) void SPIScreenManager::renderBatteryNotice(uint3
         lines[1] = power.supply_recovery_locked ? "Charge to retry" : "Lights reduced";
     }
     const ScreenTimedPopup popup{true, true, 0u, title, lines, 2u};
-    const ScreenUiStyle style{g_cfgBg, g_cfgText, g_cfgSelBg, g_cfgOkBg};
+    const ScreenUiStyle& style = g_style;
     ScreenTimedPopup_Render(&popup, &g_lcd, style);
     ST7789_SetBacklight(&g_lcd, g_wakeBacklightPending ? 0u :
         map_backlight_percent(g_cfgBrightness == 0u ? 10u : g_cfgBrightness));

@@ -37,6 +37,8 @@ void ScreenDetailLightEffect_OnConfirm(uint8_t index) {
   if (!p || index >= n)
     return;
 
+  const auto current = LightingResources::reference(p, false);
+  if (!memcmp(&refs[index], &current, sizeof(current))) return;
   if (LightingResources::select(p, false, refs[index], false))
     ScreenUI_RequestDeferredSave(2000u);
 }

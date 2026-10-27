@@ -6,6 +6,8 @@
 #include "screen_control/spi_screen_ui_common.hpp"
 #include "storagemanager.hpp"
 #include "board_mode.hpp"
+#include "adc_btns/adc_btns_worker.hpp"
+#include "leds/lighting_resources.hpp"
 #include <cassert>
 #include <cstdio>
 #include <string>
@@ -14,6 +16,8 @@
 StorageStub STORAGE_MANAGER;
 BoardStub BOARD_MODE;
 unsigned saves = 0;
+unsigned resets = 0;
+extern "C" void MainRuntime_RequestReset(void) { ++resets; }
 uint32_t tick = 0;
 extern "C" uint32_t HAL_GetTick(void) { return tick; }
 bool arrowUp = false, arrowDown = false;
@@ -125,6 +129,30 @@ int main() {
         assert(saves==0);
     }
     auto defaults = legacy();
+    // Old records gain the default; the marker/RGB survive normalization, raw persistence and JSON.
+    ScreenConfig::normalize(defaults);
+    assert(ScreenConfig::highlightColor(defaults) == ScreenConfig::kDefaultHighlight);
+    for (uint32_t color : {0u, 0xFFFFFFu, 0x52A8FFu}) {
+        ScreenConfig::setHighlightColor(defaults, color);
+        ScreenConfig::normalize(defaults);
+        ScreenControlConfig restored;
+        memcpy(&restored, &defaults, sizeof(restored));
+        assert(ScreenConfig::highlightColor(restored) == color && sizeof(restored) == 68);
+        auto* json = ScreenConfig::toJson(restored);
+        ScreenControlConfig imported{};
+        assert(!ScreenConfig::applyJson(imported, json, true)); cJSON_Delete(json);
+        assert(ScreenConfig::highlightColor(imported) == color);
+        assert(!patch(imported, R"({"brightness":42})"));
+        assert(ScreenConfig::highlightColor(imported) == color);
+        for (const char* bad : {R"({"highlightColor":-1})", R"({"highlightColor":16777216})",
+                                R"({"highlightColor":1.5})", R"({"highlightColor":"blue"})", R"({"highlightColor":null})"}) {
+            const auto before = imported;
+            assert(patch(imported, bad));
+            assert(!memcmp(&before, &imported, sizeof(before)));
+        }
+        assert(!patch(imported, R"({"brightness":42})", true));
+        assert(ScreenConfig::highlightColor(imported) == ScreenConfig::kDefaultHighlight);
+    }
     ScreenConfig::setDefaultOrder(defaults);
     ScreenConfig::normalize(defaults);
     const uint8_t defaultOrder[] = {15, 3, 0, 1, 2, 11, 13, 8, 14, 9, 10, 255};
@@ -279,7 +307,7 @@ int main() {
         saved = saves;
         ScreenDetail_OnRotate(14, &index, -128); assert(saves == saved);
         assert(!ScreenDetail_OnConfirm(14, index));
-        assert(!enabled() && seconds() == 300 && saves == saved + 1);
+        assert(!enabled() && seconds() == 300 && saves == saved);
         render(); assert(renderedTitle == "Power" && renderedIndex == child);
         // Re-entry preserves OFF; selecting a duration enables immediately.
         assert(!ScreenDetail_OnConfirm(14, index)); render(); assert(renderedValue == "OFF");
@@ -326,7 +354,7 @@ int main() {
         assert(std::string(ScreenDetail_ConfirmLabel(menu, SCREEN_LIST_BACK)) == "Back");
     }
 
-    // Confirming any brightness retains value/enabled state, queues a save and returns.
+    // Confirming any brightness only returns; rotation owns the pending save.
     for (uint8_t child : {0, 2}) {
         for (bool enabled : {false, true}) {
             auto& on = child == 0 ? leds.ledEnabled : leds.aroundLedEnabled;
@@ -338,7 +366,7 @@ int main() {
             assert(ScreenUI_ActionIcon(ScreenDetail_ConfirmLabel(ScreenConfig::kLed, index)) == ScreenActionIcon::Confirm);
             const auto saved = saves;
             assert(!ScreenDetail_OnConfirm(ScreenConfig::kLed, index));
-            assert(on == enabled && value == 60 && saves == saved + 1);
+            assert(on == enabled && value == 60 && saves == saved);
             assert(ScreenDetail_Kind(ScreenConfig::kLed) == SCREEN_DETAIL_LIST);
             ScreenDetail_Render(&lcd, ScreenConfig::kLed, index, style);
             assert(renderedTitle == "LED Setting" && renderedIndex == child);
@@ -347,7 +375,7 @@ int main() {
             ScreenDetail_OnRotate(ScreenConfig::kLed, &index, 1);
             assert(value == 70 && on);
             assert(!ScreenDetail_OnConfirm(ScreenConfig::kLed, index));
-            assert(value == 70 && on && ScreenDetail_Kind(ScreenConfig::kLed) == SCREEN_DETAIL_LIST);
+            assert(value == 70 && on && saves == saved + 1 && ScreenDetail_Kind(ScreenConfig::kLed) == SCREEN_DETAIL_LIST);
         }
     }
     for (uint8_t value : {0, 60, 100}) {
@@ -356,7 +384,7 @@ int main() {
         assert(ScreenUI_ActionIcon(ScreenDetail_ConfirmLabel(8, index)) == ScreenActionIcon::Confirm);
         const auto saved = saves;
         assert(ScreenDetail_OnConfirm(8, index));
-        assert(STORAGE_MANAGER.config.screenControl.brightness == value && saves == saved + 1);
+        assert(STORAGE_MANAGER.config.screenControl.brightness == value && saves == saved);
     }
     for (uint8_t menu : {4, 6}) {
         auto cursor = ScreenDetail_InitIndex(menu);
@@ -452,5 +480,84 @@ int main() {
     assert(ScreenDetail_OnConfirm(ScreenConfig::kLanguage,index) && ScreenText_GetLanguage()==1);
     index=0; assert(ScreenDetail_OnConfirm(ScreenConfig::kLanguage,index));
     assert(ScreenText_GetLanguage()==0 && ScreenConfig::language(localized)==0);
-    puts("screen config migration, JSON atomicity, language persistence and grouped navigation passed");
+    // Current language confirmation is navigation only, including a second click after applying.
+    auto saved = saves;
+    assert(ScreenDetail_OnConfirm(ScreenConfig::kLanguage, 0));
+    assert(saves == saved);
+
+    // Platform rows use their displayed identity: legacy PS4 and PS5 share the PS row.
+    const InputMode modes[] = {INPUT_MODE_XINPUT, INPUT_MODE_PS5, INPUT_MODE_XBOX, INPUT_MODE_SWITCH};
+    for (uint8_t i=0; i<4; ++i) {
+        STORAGE_MANAGER.config.inputMode=modes[i];
+        const auto writes=STORAGE_MANAGER.inputWrites, commits=STORAGE_MANAGER.commits;
+        const auto boots=STORAGE_MANAGER.bootWrites, resetCount=resets;
+        assert(ScreenDetail_OnConfirm(0,i));
+        assert(STORAGE_MANAGER.inputWrites==writes && STORAGE_MANAGER.commits==commits);
+        assert(STORAGE_MANAGER.bootWrites==boots && resets==resetCount);
+        assert(ScreenDetail_OnConfirm(0,(i+1)%4));
+        assert(STORAGE_MANAGER.config.inputMode==modes[(i+1)%4]);
+        assert(STORAGE_MANAGER.inputWrites==writes+1 && STORAGE_MANAGER.commits==commits+1 && resets==resetCount+1);
+    }
+    STORAGE_MANAGER.config.inputMode=INPUT_MODE_PS4;
+    const auto resetCount=resets;
+    assert(ScreenDetail_OnConfirm(0,1) && resets==resetCount && STORAGE_MANAGER.config.inputMode==INPUT_MODE_PS4);
+
+    // Sparse profile slots compare IDs, not the visible row number.
+    index=ScreenDetail_InitIndex(1);
+    const auto profileWrites=STORAGE_MANAGER.profileWrites;
+    assert(ScreenDetail_OnConfirm(1,index));
+    assert(STORAGE_MANAGER.profileWrites==profileWrites);
+
+    // Same effects must never restart their runtime; a different effect still applies once.
+    for (uint8_t menu : {5,7}) {
+        leds.aroundLedSyncToMainLed=false;
+        index=ScreenDetail_InitIndex(menu);
+        const auto selections=LightingResources::selections;
+        saved=saves;
+        assert(ScreenDetail_OnConfirm(menu,index));
+        assert(LightingResources::selections==selections && saves==saved);
+        index=menu==5 ? (index==0 ? 1 : 0) : (index==1 ? 2 : 1);
+        assert(ScreenDetail_OnConfirm(menu,index));
+        assert(LightingResources::selections==selections+1 && saves==saved+1);
+        assert(ScreenDetail_OnConfirm(menu,index));
+        assert(LightingResources::selections==selections+1 && saves==saved+1);
+    }
+    leds.aroundLedSyncToMainLed=true;
+    saved=saves;
+    assert(ScreenDetail_OnConfirm(7,0) && saves==saved);
+    // Leaving Follow for the already stored effect is a real change.
+    const auto selections=LightingResources::selections;
+    assert(ScreenDetail_OnConfirm(7,2) && !leds.aroundLedSyncToMainLed);
+    assert(saves==saved+1 && LightingResources::selections==selections+1);
+
+    // Each preset applies once; repeated confirmation preserves every per-key field.
+    for (uint8_t preset : {0,1,2}) {
+        index=ScreenDetail_InitIndex(11);
+        ScreenDetail_OnRotate(11,&index,-128);
+        ScreenDetail_OnRotate(11,&index,preset+1);
+        const auto setups=ADC_BTNS_WORKER.setups;
+        saved=saves;
+        assert(ScreenDetail_OnConfirm(11,index));
+        assert(ADC_BTNS_WORKER.setups==setups+1 && saves==saved+1);
+        const auto applied=profile;
+        index=ScreenDetail_InitIndex(11); assert(index==preset);
+        assert(ScreenDetail_OnConfirm(11,index));
+        assert(ADC_BTNS_WORKER.setups==setups+1 && saves==saved+1);
+        assert(!memcmp(&applied,&profile,sizeof(profile)));
+    }
+    // Custom is an editor entry, even when currently active. Done does not apply twice.
+    index=ScreenDetail_InitIndex(11); ScreenDetail_OnRotate(11,&index,127);
+    assert(!ScreenDetail_OnConfirm(11,index));
+    assert(!ScreenDetail_OnConfirm(11,index));
+    saved=saves;
+    const auto setups=ADC_BTNS_WORKER.setups;
+    ScreenDetail_OnRotate(11,&index,1);
+    assert(saves==saved+1 && ADC_BTNS_WORKER.setups==setups+1);
+    assert(!ScreenDetail_OnConfirm(11,index));
+    assert(saves==saved+1 && ADC_BTNS_WORKER.setups==setups+1);
+    assert(!ScreenDetail_OnBack(11));
+    index=ScreenDetail_InitIndex(11); assert(index==3);
+    assert(!ScreenDetail_OnConfirm(11,index));
+    assert(std::string(ScreenDetail_ConfirmLabel(11,index))=="Edit");
+    puts("screen config, active-option no-op, deferred saves and grouped navigation passed");
 }

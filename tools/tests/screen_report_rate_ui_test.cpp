@@ -14,6 +14,8 @@ BoardStub BOARD_MODE;
 ConnectionStub CONNECTION_MANAGER;
 
 struct Rect { uint16_t x, y, width, height; uint32_t color; };
+struct TextInk { std::string label; uint32_t fg, bg; };
+static std::vector<TextInk> textInk;
 static std::vector<Rect> rectangles;
 static std::vector<std::string> labels;
 static uint32_t pixels[ST7789_HEIGHT][ST7789_WIDTH] = {};
@@ -32,10 +34,11 @@ void ST7789_FillRect(ST7789_Handle*, uint16_t x, uint16_t y, uint16_t w, uint16_
     for (unsigned yy = y; yy < y + h; ++yy)
         for (unsigned xx = x; xx < x + w; ++xx) pixels[yy][xx] = color;
 }
-void ST7789_DrawString(ST7789_Handle*, uint16_t x, uint16_t y, const char* text, uint32_t, uint32_t, uint8_t scale) {
+void ST7789_DrawString(ST7789_Handle*, uint16_t x, uint16_t y, const char* text, uint32_t fg, uint32_t bg, uint8_t scale) {
     assert(x + ScreenUI_TextPxW(text, scale) <= ST7789_WIDTH);
     assert(y + ScreenUI_CharCellH(scale) <= ST7789_HEIGHT);
     labels.emplace_back(text);
+    textInk.push_back({text, fg, bg});
 }
 void ScreenUI_RequestDeferredSave(uint32_t) { std::abort(); }
 
@@ -59,6 +62,8 @@ int main() {
         ScreenDetailTournament_Rotate(&index, -1);
         assert(index == (i > 0 ? i - 1 : 0));
         assert(STORAGE_MANAGER.rate == rates[i]); // Selection waits for confirmation.
+        // Same-rate confirmation must exit before any board/RF/save call (stubs abort).
+        assert(ScreenDetailTournament_OnConfirm(i));
     }
     uint8_t index = 0;
     ScreenDetailTournament_Rotate(&index, 127); assert(index == 3);
@@ -171,5 +176,47 @@ int main() {
     assert(ScreenUI_ActionIcon(nullptr) == ScreenActionIcon::None);
     assert(ScreenUI_ActionIcon("") == ScreenActionIcon::None);
     assert(ScreenUI_ActionIcon("unknown") == ScreenActionIcon::None);
+
+    const auto steel = ScreenUI_ColdSteelStyle(false);
+    assert(steel.bg == 0x101923 && steel.selBg == 0x30495e);
+    assert(steel.text == 0xdce6f0 && steel.mutedText == 0xa9b9cc);
+    assert(steel.icon == 0x88b4d7 && steel.track == 0x263b4c);
+    assert(steel.accent == 0xb5ed68);
+    const auto pink = ScreenUI_ColdSteelStyle(false, 0xff88cc);
+    assert(pink.bg == steel.bg && pink.icon == steel.icon && pink.selBg == steel.selBg);
+    assert(pink.accent == 0xff88cc);
+    assert(ScreenUI_ColdSteelStyle(false, 0).accent != steel.bg);
+    assert(ScreenUI_ColdSteelStyle(true, 0xffffff).accent != 0xffffff);
+    for (bool light : {false, true}) {
+        const auto theme = ScreenUI_ColdSteelStyle(light);
+        rectangles.clear(); textInk.clear();
+        ScreenDetailRender_List(&lcd, "List", items, 2, 1, 0, theme,
+            SPI_SCREEN_MENU_ITEM_H, false, 0, 0, 0, nullptr, false);
+        assert(textInk[0].fg == theme.text); // Applied value outside the focus stays neutral.
+        assert(textInk[1].fg == theme.accent && textInk[1].bg == theme.selBg);
+        rectangles.clear(); textInk.clear();
+        ScreenDetailRender_Slider(&lcd, "Brightness", 70, theme);
+        assert(rectangles[1].color == theme.track && rectangles[2].color == theme.accent);
+        assert(rectangles[1].x == 50 && rectangles[1].y == 72 && rectangles[1].height == 28);
+        assert(rectangles[2].width == 154);
+        assert(textInk[0].fg == theme.text && textInk[1].fg == theme.text);
+
+        // Arrow-to-slider transition erases every old arrow pixel; middle action is untouched.
+        ScreenUI_DrawListArrows(&lcd, true, true, theme.icon, theme.bg);
+        pixels[85][300] = 0x123456;
+        ScreenUI_DrawSliderControls(&lcd, theme.icon, theme.bg);
+        for (unsigned y = 0; y < 172; ++y) for (unsigned x = 280; x < 320; ++x) {
+            if (y >= 57 && y < 114) continue;
+            const bool plus = (x >= 294 && x < 306 && y >= 22 && y < 24) ||
+                              (x >= 299 && x < 301 && y >= 17 && y < 29);
+            const bool minus = x >= 294 && x < 306 && y >= 147 && y < 149;
+            assert(pixels[y][x] == (plus || minus ? theme.icon : theme.bg));
+        }
+        assert(pixels[85][300] == 0x123456);
+        const uint8_t icon[] = {0,0, 255,255, 0x10,0x84};
+        ScreenUI_DrawTintedIcon(&lcd, 6, 103, 3, 1, icon, theme.icon, theme.bg);
+        assert(pixels[103][6] == theme.bg && pixels[103][7] == theme.icon);
+        assert(pixels[103][8] != theme.bg && pixels[103][8] != theme.icon);
+    }
 
 }

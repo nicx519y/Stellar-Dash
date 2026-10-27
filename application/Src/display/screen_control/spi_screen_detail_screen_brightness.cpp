@@ -30,5 +30,4 @@ void ScreenDetailScreenBrightness_Render(ST7789_Handle* lcd, uint8_t index, cons
 void ScreenDetailScreenBrightness_OnConfirm(uint8_t index) {
     (void)index;
     // Rotation already applies the value; confirmation preserves it and exits.
-    ScreenUI_RequestDeferredSave(2000u);
 }

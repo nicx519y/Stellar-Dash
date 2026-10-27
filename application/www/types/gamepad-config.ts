@@ -177,6 +177,8 @@ export interface ScreenControlConfig {
     readonly standbySupported?: boolean;
     standbyTimeoutSeconds: number;
     screenStyle: ScreenStyle;
+    highlightColor?: number;
+    readonly highlightSupported?: boolean;
     backgroundImageId: string;
     currentPageId: number;
     features: ScreenControlFeatures;
@@ -194,6 +196,7 @@ export const DEFAULT_SCREEN_CONTROL_CONFIG: ScreenControlConfig = {
     standbyEnabled: false,
     standbyTimeoutSeconds: 10,
     screenStyle: 'dark',
+    highlightColor: 0xB5ED68,
     backgroundImageId: "",
     currentPageId: 0,
     features: {
@@ -838,6 +841,9 @@ export const UI_TEXT = {
     // Screen Control Settings
     SETTINGS_SCREEN_CONTROL_TITLE: "Screen Control",
     SETTINGS_SCREEN_CONTROL_BASIC: "Basic Settings",
+    SETTINGS_SCREEN_CONTROL_HIGHLIGHT: "Highlight color",
+    SETTINGS_SCREEN_CONTROL_HIGHLIGHT_HELP: "Used for selection and adjustment. Very dark or bright colors are adjusted for readability; the cool steel palette stays unchanged.",
+    SETTINGS_SCREEN_CONTROL_HIGHLIGHT_UPDATE: "Update device firmware to configure the highlight color.",
     SETTINGS_SCREEN_CONTROL_HELPER_TEXT: "Customize the screen control features, such as brightness, contrast, and color.",
     SETTINGS_SCREEN_CONTROL_FEATURES: "Screen Menu",
     SETTINGS_SCREEN_CONTROL_BRIGHTNESS_LABEL: "Brightness",
@@ -1395,6 +1401,9 @@ export const UI_TEXT_ZH = {
     // 屏控设置
     SETTINGS_SCREEN_CONTROL_TITLE: "屏控设置",
     SETTINGS_SCREEN_CONTROL_BASIC: "基本设置",
+    SETTINGS_SCREEN_CONTROL_HIGHLIGHT: "高亮色",
+    SETTINGS_SCREEN_CONTROL_HIGHLIGHT_HELP: "用于选中与调节状态。过暗或过亮的颜色会自动调整以保持清晰，冷钢蓝基础配色保持不变。",
+    SETTINGS_SCREEN_CONTROL_HIGHLIGHT_UPDATE: "请更新设备固件后再配置高亮色。",
     SETTINGS_SCREEN_CONTROL_HELPER_TEXT: "可以在这里自定义屏控功能、效果样式、颜色和亮度。",
     SETTINGS_SCREEN_CONTROL_FEATURES: "屏幕菜单",
     SETTINGS_SCREEN_CONTROL_BRIGHTNESS_LABEL: "屏幕亮度",

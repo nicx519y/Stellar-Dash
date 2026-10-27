@@ -166,6 +166,7 @@ bool ScreenDetail_OnConfirm(uint8_t menuId, uint8_t index) {
     if (menuId == ScreenConfig::kLanguage) {
         if (index == SCREEN_LIST_BACK) return true;
         if (index > 1u) return false;
+        if (index == ScreenConfig::language(STORAGE_MANAGER.config.screenControl)) return true;
         ScreenConfig::setLanguage(STORAGE_MANAGER.config.screenControl,index);
         ScreenText_SetLanguage(index);
         ScreenUI_RequestDeferredSave(2000u);
@@ -201,7 +202,7 @@ bool ScreenDetail_OnConfirm(uint8_t menuId, uint8_t index) {
         return ScreenDetail_OnBack(menuId);
     if (isTimer(menuId)) {
         if (!timerSupported(menuId)) return false;
-        ScreenUI_RequestDeferredSave(2000u);
+        // Rotation already applies and queues persistence; confirmation only returns.
         return true;
     }
     switch (menuId) {

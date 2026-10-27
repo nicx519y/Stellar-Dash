@@ -10,6 +10,9 @@
 
 extern "C" uint32_t HAL_GetTick(void);
 
+// Menu editing/rendering is main-loop work; preserve space for the shared screen theme.
+#pragma GCC optimize ("Os")
+
 #define BTN_PERF_EDIT_MUL_BASE 1u // 基础步进倍率：慢慢滚动时使用
 
 #define BTN_PERF_EDIT_ACCEL_DT_FAST_MS 40u  // dt 小于此值视为“很快”，更容易触发大倍率（调大=更容易加速）
@@ -329,6 +332,7 @@ bool ScreenDetailButtonsPerformance_OnConfirm(uint8_t index) {
             return false;
         }
 
+        if (preset == current_matched_preset()) return true;
         apply_preset_to_all(p, preset);
         ADC_BTNS_WORKER.setup();
         ScreenUI_RequestDeferredSave(2000u);
@@ -337,8 +341,7 @@ bool ScreenDetailButtonsPerformance_OnConfirm(uint8_t index) {
 
     g_customEditing = !g_customEditing;
     if (!g_customEditing) {
-        ADC_BTNS_WORKER.setup();
-        ScreenUI_RequestDeferredSave(2000u);
+        // Each custom step already applies and queues persistence; Done only navigates.
         g_inertiaSteps = 0u;
         g_inertiaDir = 0;
         g_editMul = BTN_PERF_EDIT_MUL_BASE;
@@ -368,7 +371,7 @@ bool ScreenDetailButtonsPerformance_OnBack(void) {
     return false;
 }
 
-void ScreenDetailButtonsPerformance_Render(ST7789_Handle* lcd, uint8_t, const ScreenUiStyle& style) {
+__attribute__((optimize("Os"))) void ScreenDetailButtonsPerformance_Render(ST7789_Handle* lcd, uint8_t, const ScreenUiStyle& style) {
     if (g_mode == MODE_PRESET_LIST) {
         uint8_t selected = (uint8_t)current_matched_preset();
         ScreenDetailRender_List(lcd, "Buttons Performance", kPresetLabels, (uint8_t)PRESET_COUNT, g_presetCursor, selected, style);
@@ -409,7 +412,7 @@ void ScreenDetailButtonsPerformance_Render(ST7789_Handle* lcd, uint8_t, const Sc
     const uint16_t pad = 8u;
     const uint16_t rowH = (uint16_t)((h - pad * 2u) / 2u);
     const uint16_t y0 = pad;
-    const uint32_t muted = ScreenUI_MutedTextForBg(style.text, style.bg, 120u);
+    const uint32_t muted = style.mutedText;
     const uint32_t selBg = g_customEditing ? style.okBg : style.selBg;
 
     ST7789_FillRect(lcd, listX, 0, listW, h, style.bg);
@@ -421,7 +424,7 @@ void ScreenDetailButtonsPerformance_Render(ST7789_Handle* lcd, uint8_t, const Sc
     // Back is the first logical row; keep the parameter bars and values intact.
     const uint8_t logicalCursor = cursor == SCREEN_LIST_BACK ? 0u : cursor + 1u;
     if (!g_customEditing)
-        ScreenUI_DrawListArrows(lcd, logicalCursor > 0u, logicalCursor < PARAM_COUNT, style.text, style.bg);
+        ScreenUI_DrawListArrows(lcd, logicalCursor > 0u, logicalCursor < PARAM_COUNT, style.icon, style.bg);
     uint8_t base = (logicalCursor / 2u) * 2u;
     for (uint8_t row = 0; row < 2u; row++) {
         const uint8_t logicalRow = base + row;
@@ -431,15 +434,16 @@ void ScreenDetailButtonsPerformance_Render(ST7789_Handle* lcd, uint8_t, const Sc
             const uint32_t bg = selected ? style.selBg : style.bg;
             ST7789_FillRect(lcd, listX, ry, listW, rowH, bg);
             const uint16_t textY = ry + (rowH - ScreenUI_CharCellH(2u)) / 2u;
-            ScreenUI_DrawBackIcon(lcd, x, textY + 2u, style.text);
-            ST7789_DrawString(lcd, x + 20u, textY, "Back", style.text, bg, 2u);
+            const uint32_t fg = selected ? style.accent : style.text;
+            ScreenUI_DrawBackIcon(lcd, x, textY + 2u, fg);
+            ST7789_DrawString(lcd, x + 20u, textY, "Back", fg, bg, 2u);
             continue;
         }
         uint8_t param = logicalRow - 1u;
         if (param >= PARAM_COUNT) continue;
         bool selected = (param == cursor);
         uint32_t bg = selected ? selBg : style.bg;
-        uint32_t fg = selected ? style.text : muted;
+        uint32_t fg = selected ? style.accent : muted;
         ST7789_FillRect(lcd, listX, ry, listW, rowH, bg);
         const uint8_t labelScale = 2u;
         const uint8_t valueScale = 2u;
@@ -461,8 +465,8 @@ void ScreenDetailButtonsPerformance_Render(ST7789_Handle* lcd, uint8_t, const Sc
         if (range > 0u) {
             fillW = (uint16_t)((uint32_t)barW * (uint32_t)(v100 - m.min100) / (uint32_t)range);
         }
-        const uint32_t track = ScreenUI_HighlightFromBg(bg, 20u);
-        const uint32_t fill = selected ? style.text : ScreenUI_MutedTextForBg(style.text, bg, 80u);
+        const uint32_t track = style.track;
+        const uint32_t fill = selected ? style.accent : style.icon;
         ST7789_FillRect(lcd, barX, barY, barW, barH, track);
         ST7789_FillRect(lcd, barX, barY, fillW, barH, fill);
 

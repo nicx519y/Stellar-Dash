@@ -19,7 +19,7 @@ inline uint8_t featureId(const char* key) {
     for (uint8_t i = 0; i < 4; ++i) if (!strcmp(key, kLegacyLedKeys[i])) return uint8_t(4 + i);
     return 255;
 }
-inline cJSON* toJson(const ScreenControlConfig& value) {
+__attribute__((optimize("Os"))) inline cJSON* toJson(const ScreenControlConfig& value) {
     auto sc = value; normalize(sc);
     auto* json = cJSON_CreateObject();
     cJSON_AddNumberToObject(json, "brightness", sc.brightness);
@@ -28,6 +28,7 @@ inline cJSON* toJson(const ScreenControlConfig& value) {
     cJSON_AddStringToObject(json, "standbyDisplay", sc.standbyDisplay == 1 ? "backgroundImage" : sc.standbyDisplay == 2 ? "buttonLayout" : "screenOff");
     cJSON_AddNumberToObject(json, "standbyTimeoutSeconds", sc.standbyTimeoutSeconds);
     cJSON_AddStringToObject(json, "screenStyle", sc.screenStyle == SCREEN_STYLE_LIGHT ? "light" : "dark");
+    cJSON_AddNumberToObject(json, "highlightColor", highlightColor(sc));
     cJSON_AddStringToObject(json, "backgroundImageId", sc.backgroundImageId);
     cJSON_AddNumberToObject(json, "currentPageId", sc.currentPageId);
     auto* features = cJSON_AddObjectToObject(json, "features");
@@ -37,7 +38,7 @@ inline cJSON* toJson(const ScreenControlConfig& value) {
     return json;
 }
 // Apply atomically; legacy backups may omit the independent switch.
-inline const char* applyJson(ScreenControlConfig& target, const cJSON* json, bool importing = false) {
+__attribute__((optimize("Os"))) inline const char* applyJson(ScreenControlConfig& target, const cJSON* json, bool importing = false) {
     if (!cJSON_IsObject(json)) return "Invalid screenControl";
     auto sc = target; normalize(sc);
     const auto* lang = cJSON_GetObjectItemCaseSensitive(json, "language");
@@ -46,6 +47,12 @@ inline const char* applyJson(ScreenControlConfig& target, const cJSON* json, boo
         setLanguage(sc, !strcmp(lang->valuestring, "zh-CN"));
     } else if (importing) setLanguage(sc, 0u);
     const auto languageValue = language(sc);
+    const auto* highlight = cJSON_GetObjectItemCaseSensitive(json, "highlightColor");
+    if (highlight && (!cJSON_IsNumber(highlight) || !std::isfinite(highlight->valuedouble) ||
+        highlight->valuedouble != highlight->valueint || highlight->valueint < 0 || highlight->valueint > 0xFFFFFF))
+        return "Invalid screen highlight color";
+    const uint32_t highlightValue = highlight ? uint32_t(highlight->valueint)
+        : importing ? kDefaultHighlight : highlightColor(sc);
     auto* item = cJSON_GetObjectItemCaseSensitive(json, "standbyEnabled");
     if (item && !cJSON_IsBool(item)) return "Invalid standbyEnabled";
     const auto* enable = item;
@@ -113,6 +120,7 @@ inline const char* applyJson(ScreenControlConfig& target, const cJSON* json, boo
     if (legacyFeatures) sc.reservedStyle[0] = 0;
     normalize(sc);
     setLanguage(sc, languageValue);
+    setHighlightColor(sc, highlightValue);
     setEnabled(sc, switchValue);
     target = sc;
     return nullptr;

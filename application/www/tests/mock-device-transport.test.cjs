@@ -2506,9 +2506,10 @@ test('screen standby switch and grouped menus persist through Mock save, reload 
   assert.equal(initial.standbyEnabled, false);
   assert.equal(initial.standbyDisplay, 'screenOff');
   await update({ standbyEnabled: true, standbyDisplay: 'screenOff', standbyTimeoutSeconds: 300,
-    currentPageId: 14, featuresOrder: ['power', 'ledSetting'] });
+    currentPageId: 14, featuresOrder: ['power', 'ledSetting'], highlightColor: 0x52a8ff });
   const value = await get();
   assert.equal(value.currentPageId, 14);
+  assert.equal(value.highlightColor, 0x52a8ff);
   assert.equal(value.featuresOrder.length, 11);
   assert.equal(value.features.ledBrightnessAdjust, undefined);
   for (const invalid of [1, 'false', null]) {
@@ -2519,10 +2520,12 @@ test('screen standby switch and grouped menus persist through Mock save, reload 
   await second.connect(); second.markReady();
   assert.deepEqual((await second.request('get_screen_control_config')).screenControl, { ...value, standbySupported: true });
   const backup = await client.exportConfig();
-  await update({ standbyEnabled: false, standbyDisplay: 'buttonLayout' });
+  await update({ standbyEnabled: false, standbyDisplay: 'buttonLayout', highlightColor: 0 });
+  assert.equal((await get()).highlightColor, 0);
   await client.importConfig(backup);
   assert.equal((await get()).standbyEnabled, true);
   assert.equal((await get()).standbyDisplay, 'screenOff');
+  assert.equal((await get()).highlightColor, 0x52a8ff);
   backup.screenControl.standbyDisplay = 'none'; delete backup.screenControl.standbyEnabled;
   await client.importConfig(backup);
   assert.equal((await get()).standbyEnabled, false);

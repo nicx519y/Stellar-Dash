@@ -69,5 +69,6 @@ void ScreenDetailProfiles_OnConfirm(uint8_t index) {
     uint8_t count = build_enabled_profile_map();
     if (index >= count) return;
     uint8_t pi = g_enabledProfileIdx[index];
+    if (strcmp(STORAGE_MANAGER.config.profiles[pi].id, STORAGE_MANAGER.config.defaultProfileId) == 0) return;
     STORAGE_MANAGER.setDefaultProfileId(STORAGE_MANAGER.config.profiles[pi].id);
 }

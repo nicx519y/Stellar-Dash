@@ -54,6 +54,7 @@ void ScreenDetailInputMode_Render(ST7789_Handle* lcd, uint8_t index, const Scree
 }
 
 void ScreenDetailInputMode_OnConfirm(uint8_t index) {
+    if (index == ScreenDetailInputMode_InitIndex()) return;
     if (!BOARD_MODE.isStable() ||
         BOARD_MODE.current() != BoardMode::Usb) {
         return;

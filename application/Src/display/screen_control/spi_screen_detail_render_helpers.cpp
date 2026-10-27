@@ -15,7 +15,7 @@ __attribute__((optimize("Os"))) void ScreenDetailRender_List(ST7789_Handle* lcd,
     const uint16_t listW = (uint16_t)(w - SPI_SCREEN_LEFT_BAR_W - SPI_SCREEN_RIGHT_BAR_W);
     const uint16_t centerY = (uint16_t)(h / 2u);
     const uint16_t anchorY = (uint16_t)(centerY - itemH / 2u);
-    const uint32_t normalText = ScreenUI_MutedTextForBg(style.text, style.bg, 80u);
+    const uint32_t normalText = style.mutedText;
     const uint32_t disabledText = ScreenUI_MutedTextForBg(style.text, style.bg, 180u);
     const uint16_t charH = ScreenUI_CharCellH(SPI_SCREEN_MENU_TEXT_SCALE);
 
@@ -35,7 +35,7 @@ __attribute__((optimize("Os"))) void ScreenDetailRender_List(ST7789_Handle* lcd,
         if (i < cursor) canUp = true;
         if (i > cursor) canDown = true;
     }
-    ScreenUI_DrawListArrows(lcd, canUp, canDown, style.text, style.bg);
+    ScreenUI_DrawListArrows(lcd, canUp, canDown, style.icon, style.bg);
     for (int i = showBack ? -1 : 0; i < count; i++) {
         int dy = (i - cursor) * (int)itemH;
         int y0 = (int)anchorY + dy + offsetPx;
@@ -53,7 +53,8 @@ __attribute__((optimize("Os"))) void ScreenDetailRender_List(ST7789_Handle* lcd,
         const bool back = i == -1;
         const char* label = back ? "Back" : (labels[i] ? labels[i] : "");
         const bool disabled = !back && disabledItems && disabledItems[i];
-        const uint32_t itemText = disabled ? disabledText : ((back || i == selectedConfigIndex) ? style.text : normalText);
+        const uint32_t itemText = disabled ? disabledText : i == cursor ? style.accent
+            : ((back || i == selectedConfigIndex) ? style.text : normalText);
         const uint16_t textX = listX + (back ? 24u : 4u);
         char row[64];
         ScreenUI_NextTextRow(ScreenText_Translate(label), row,
@@ -74,7 +75,7 @@ __attribute__((optimize("Os"))) void ScreenDetailRender_List(ST7789_Handle* lcd,
     }
 }
 
-void ScreenDetailRender_Slider(ST7789_Handle* lcd, const char* title, uint8_t value, const ScreenUiStyle& style, uint8_t maxValue, const char* valueLabel) {
+__attribute__((optimize("Os"))) void ScreenDetailRender_Slider(ST7789_Handle* lcd, const char* title, uint8_t value, const ScreenUiStyle& style, uint8_t maxValue, const char* valueLabel) {
     if (!lcd || maxValue == 0u) return;
     if (value > maxValue) value = maxValue;
 
@@ -95,8 +96,8 @@ void ScreenDetailRender_Slider(ST7789_Handle* lcd, const char* title, uint8_t va
     ST7789_FillRect(lcd, listX, 0, listW, h, style.bg);
     ST7789_DrawString(lcd, barX, (uint16_t)(barY - titleH - 10u), title, style.text, style.bg, titleScale);
 
-    ST7789_FillRect(lcd, barX, barY, barW, barH, style.selBg);
-    ST7789_FillRect(lcd, barX, barY, fillW, barH, style.text);
+    ST7789_FillRect(lcd, barX, barY, barW, barH, style.track);
+    ST7789_FillRect(lcd, barX, barY, fillW, barH, style.accent);
 
     char val[8];
     snprintf(val, sizeof(val), "%u%%", (unsigned)value);
