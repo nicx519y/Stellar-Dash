@@ -1,3 +1,5 @@
+import { publicAssetUrl } from '../public-asset';
+
 export interface AccountAvatarOption {
   id: string;
   name: string;
@@ -6,7 +8,7 @@ export interface AccountAvatarOption {
 
 export const DEFAULT_ACCOUNT_AVATAR_ID = 'sf6-ryu';
 export const DEFAULT_ACCOUNT_AVATAR_SRC =
-  `/images/account-avatars/${DEFAULT_ACCOUNT_AVATAR_ID}.webp`;
+  publicAssetUrl(`/images/account-avatars/${DEFAULT_ACCOUNT_AVATAR_ID}.webp`);
 
 const CHARACTERS = [
   ['ryu', 'Ryu'], ['luke', 'Luke'], ['jamie', 'Jamie'],
@@ -25,7 +27,7 @@ const CHARACTERS = [
 export const ACCOUNT_AVATARS: readonly AccountAvatarOption[] = CHARACTERS.map(
   ([slug, name]) => {
     const id = `sf6-${slug}`;
-    return { id, name, src: `/images/account-avatars/${id}.webp` };
+    return { id, name, src: publicAssetUrl(`/images/account-avatars/${id}.webp`) };
   },
 );
 

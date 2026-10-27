@@ -19,6 +19,7 @@ import { processGalleryImage } from '@/lib/gallery-image-processor';
 import {
   deleteMyGalleryImages,
   fetchMyGallery,
+  fetchGalleryAsset,
   fetchSystemGallery,
   GalleryImage,
   galleryPosterUrl,
@@ -155,16 +156,19 @@ function usePreviewUrl(sourceUrl: string, fetchResource: PropsWithFetch, enabled
 }
 
 function AuthorizedPreview({ image, fetchAuthorized, playing }: { image: GalleryImage; fetchAuthorized: PropsWithFetch; playing: boolean }) {
+  const fetchAsset = useCallback<PropsWithFetch>((input, init) =>
+    fetchGalleryAsset({ id: image.id, scope: image.scope }, String(input), fetchAuthorized, init),
+  [image.id, image.scope, fetchAuthorized]);
   const animated = image.sourceMime.toLowerCase() === 'image/gif';
   const previewUrl = galleryPosterUrl(image);
   const [requestedAnimation, setRequestedAnimation] = useState('');
   useEffect(() => {
     if (animated && playing) setRequestedAnimation(image.sourceUrl);
   }, [animated, playing, image.sourceUrl]);
-  const poster = usePreviewUrl(previewUrl, fetchAuthorized, image.scope === 'system');
+  const poster = usePreviewUrl(previewUrl, fetchAsset, image.scope === 'system');
   // Both galleries load the original GIF only after a mouse hover. Retain the
   // downloaded blob for repeat hovers and keep the poster visible while loading.
-  const animation = usePreviewUrl(image.sourceUrl, image.scope === 'system' ? fetchAuthorized : fetch,
+  const animation = usePreviewUrl(image.sourceUrl, fetchAsset,
     animated && requestedAnimation === image.sourceUrl);
   const posterUrl = image.scope === 'user' ? previewUrl : poster;
   const displayedUrl = animated && playing && animation ? animation : posterUrl;
@@ -271,9 +275,7 @@ async function loadGallerySourceBlob(
   image: GalleryImage,
   fetchAuthorized: PropsWithFetch,
 ): Promise<Blob> {
-  const response = image.scope === 'system'
-    ? await fetchAuthorized(image.sourceUrl, { cache: 'force-cache' })
-    : await fetch(image.sourceUrl, { cache: 'force-cache', credentials: 'same-origin' });
+  const response = await fetchGalleryAsset(image, image.sourceUrl, fetchAuthorized, { cache: 'force-cache' });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   const source = await response.blob();
   const mime = (source.type || image.sourceMime).toLowerCase();
@@ -551,7 +553,7 @@ export function BackgroundImageGallery({ disabled, config, onInstalled, onAvaila
     try {
       const source = await loadGallerySourceBlob(image, authorizedFetch);
       installedPreview = URL.createObjectURL(source);
-      const response = image.scope === 'system' ? await authorizedFetch(image.deviceAssetUrl) : await fetch(image.deviceAssetUrl, { credentials: 'same-origin' });
+      const response = await fetchGalleryAsset(image, image.deviceAssetUrl, authorizedFetch);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const bytes = new Uint8Array(await response.arrayBuffer());
       const parsed = parseUimg(bytes);

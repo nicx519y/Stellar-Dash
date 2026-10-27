@@ -6,6 +6,7 @@ const fs = require('fs-extra');
 const path = require('path');
 const Database = require('better-sqlite3');
 const multer = require('multer');
+const { galleryAssetUrls, parseGalleryCdnOrigin } = require('./gallery-cdn');
 
 const USER_GALLERY_LIMIT = 10;
 const MAX_SOURCE_BYTES = 20 * 1024 * 1024;
@@ -458,7 +459,7 @@ function deviceFingerprint(query) {
     return result;
 }
 
-function publicItem(item) {
+function publicItem(item, cdnOrigin = '') {
     return {
         id: item.id,
         scope: item.scope,
@@ -475,9 +476,7 @@ function publicItem(item) {
         published: item.published,
         createdAt: item.createdAt,
         updatedAt: item.updatedAt,
-        sourceUrl: `/api/gallery/images/${encodeURIComponent(item.id)}/source`,
-        previewUrl: `/api/gallery/images/${encodeURIComponent(item.id)}/preview`,
-        deviceAssetUrl: `/api/gallery/images/${encodeURIComponent(item.id)}/device`,
+        ...galleryAssetUrls(item, cdnOrigin),
     };
 }
 
@@ -510,6 +509,12 @@ function readUpload(req) {
 
 function initImageGalleryRoutes(app, options) {
     const { store, storage, emailAuth, deviceAuth, adminAccess } = options;
+    const cdnOrigin = parseGalleryCdnOrigin(options.cdnOrigin);
+    const toPublicItem = item => publicItem(item, cdnOrigin);
+    app.use('/api/gallery', (_req, res, next) => {
+        res.set('Cache-Control', 'private, no-store');
+        next();
+    });
     const memoryUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_SOURCE_BYTES, files: 3, fields: 4 } });
     const uploadFields = memoryUpload.fields([{ name: 'source', maxCount: 1 }, { name: 'preview', maxCount: 1 }, { name: 'deviceAsset', maxCount: 1 }]);
     const humanAdmin = adminAccess.requireAdmin({ humanOnly: true });
@@ -547,7 +552,7 @@ function initImageGalleryRoutes(app, options) {
         try {
             const limit = Math.max(1, Math.min(100, Number(req.query.limit) || 30));
             const result = store.listSystem({ offset: cursorOffset(req.query.cursor), limit });
-            res.json({ success: true, data: { items: result.items.map(publicItem), nextCursor: result.nextOffset === null ? null : Buffer.from(String(result.nextOffset)).toString('base64url') } });
+            res.json({ success: true, data: { items: result.items.map(toPublicItem), nextCursor: result.nextOffset === null ? null : Buffer.from(String(result.nextOffset)).toString('base64url') } });
         } catch (error) { next(error); }
     });
     app.get('/api/gallery/match', deviceRead, (req, res, next) => {
@@ -559,11 +564,11 @@ function initImageGalleryRoutes(app, options) {
                 account?.uid || null,
                 key => fs.readFileSync(storage.resolve(key)),
             );
-            res.json({ success: true, data: { item: item ? publicItem(item) : null } });
+            res.json({ success: true, data: { item: item ? toPublicItem(item) : null } });
         } catch (error) { next(error); }
     });
     app.get('/api/gallery/mine', requireUser(false), (req, res, next) => {
-        try { const result = store.listMine(req.galleryUser.uid); res.json({ success: true, data: { ...result, items: result.items.map(publicItem) } }); } catch (error) { next(error); }
+        try { const result = store.listMine(req.galleryUser.uid); res.json({ success: true, data: { ...result, items: result.items.map(toPublicItem) } }); } catch (error) { next(error); }
     });
     app.post('/api/gallery/mine/images', requireUser(true), parseUpload, (req, res, next) => {
         try { res.status(201).json({ success: true, data: publicItem(createUploaded(req, 'user')) }); } catch (error) { next(error); }

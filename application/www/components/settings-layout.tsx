@@ -1,5 +1,7 @@
 'use client';
 
+import { publicAssetUrl } from '@/lib/public-asset';
+
 import React from 'react';
 import { useRouterStore, Route } from './router';
 import { Flex, Center, Box, Tabs, HStack, Separator, Image, Grid } from '@chakra-ui/react';
@@ -72,7 +74,7 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
                 <HStack justifyContent="flex-start" position="relative" minW={0} maxW="100%">
                     <Box position="relative" flexShrink={0} w="165px" h="44px">
                     <Image
-                        src="/images/xora-mono-slate.svg"
+                        src={publicAssetUrl('/images/xora-mono-slate.svg')}
                         alt="XORA 星溯"
                         width="165px"
                         height="44px"

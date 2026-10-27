@@ -1,0 +1,19 @@
+[Unit]
+Description=XORA assets CDN certificate synchronization
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/etc/xora/secrets/aliyun-cdn-assets.json
+ConditionPathExists=/etc/letsencrypt/live/assets.st-dash.com/fullchain.pem
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/opt/xora/cdn-cert/venv/bin/python /opt/xora/cdn-cert/cdn_certificate.py sync --wait-seconds 60
+SuccessExitStatus=3
+TimeoutStartSec=150
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/xora-cdn-cert

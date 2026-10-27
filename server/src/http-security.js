@@ -1,5 +1,7 @@
 'use strict';
 
+const { parseGalleryCdnOrigin } = require('./gallery-cdn');
+
 function parseAllowedOrigins(value, defaultOrigin) {
     const candidates = value
         ? value.split(',')
@@ -74,6 +76,8 @@ function createExactCorsOptions(allowedOrigins) {
 }
 
 function buildContentSecurityPolicy(options = {}) {
+    const galleryCdnOrigin = parseGalleryCdnOrigin(options.galleryCdnOrigin);
+    const webCdnOrigin = parseGalleryCdnOrigin(options.webCdnOrigin);
     const scriptHashes = Array.isArray(options.scriptHashes)
         ? options.scriptHashes
         : [];
@@ -90,39 +94,45 @@ function buildContentSecurityPolicy(options = {}) {
         "base-uri 'self'",
         "frame-ancestors 'none'",
         "object-src 'none'",
-        ["script-src 'self'", ...normalizedHashes].join(' '),
+        ["script-src 'self'", webCdnOrigin, ...normalizedHashes].filter(Boolean).join(' '),
         "script-src-attr 'none'",
-        "style-src 'self' 'unsafe-inline'",
+        ["style-src 'self' 'unsafe-inline'", webCdnOrigin].filter(Boolean).join(' '),
         // Device previews are fetched as authenticated same-origin responses
         // and rendered through an in-memory Blob URL. Keep remote image
         // origins blocked while allowing that local object URL lifecycle.
-        "img-src 'self' data: blob:",
-        "connect-src 'self'",
-        "font-src 'self'",
+        ["img-src 'self' data: blob:", webCdnOrigin].filter(Boolean).join(' '),
+        [...new Set(["connect-src 'self'", galleryCdnOrigin, webCdnOrigin].filter(Boolean))].join(' '),
+        ["font-src 'self'", webCdnOrigin].filter(Boolean).join(' '),
         "form-action 'self'"
     ].join('; ');
 }
 
-function securityHeaders(req, res, next) {
-    res.set({
-        'Strict-Transport-Security':
-            'max-age=31536000; includeSubDomains',
-        'Content-Security-Policy': buildContentSecurityPolicy(),
-        'Permissions-Policy':
-            'hid=(self), camera=(), microphone=(), geolocation=()',
-        'Referrer-Policy': 'no-referrer',
-        'X-Content-Type-Options': 'nosniff',
-        'X-Frame-Options': 'DENY',
-        'Cross-Origin-Opener-Policy': 'same-origin',
-        'Cross-Origin-Resource-Policy': 'same-origin'
-    });
-    next();
+function createSecurityHeaders(options = {}) {
+    const contentSecurityPolicy = buildContentSecurityPolicy(options);
+    return (req, res, next) => {
+        res.set({
+            'Strict-Transport-Security':
+                'max-age=31536000; includeSubDomains',
+            'Content-Security-Policy': contentSecurityPolicy,
+            'Permissions-Policy':
+                'hid=(self), camera=(), microphone=(), geolocation=()',
+            'Referrer-Policy': 'no-referrer',
+            'X-Content-Type-Options': 'nosniff',
+            'X-Frame-Options': 'DENY',
+            'Cross-Origin-Opener-Policy': 'same-origin',
+            'Cross-Origin-Resource-Policy': 'same-origin'
+        });
+        next();
+    };
 }
+
+const securityHeaders = createSecurityHeaders();
 
 module.exports = {
     parseAllowedOrigins,
     parseTrustedProxyHops,
     createExactCorsOptions,
     buildContentSecurityPolicy,
+    createSecurityHeaders,
     securityHeaders
 };

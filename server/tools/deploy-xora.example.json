@@ -7,5 +7,7 @@
   "admin_domain": "manager.st-dash.com",
   "port": 3000,
   "node": "/usr/bin/node",
-  "email_from": "XORA <no-reply@auth.st-dash.com>"
+  "email_from": "XORA <no-reply@auth.st-dash.com>",
+  "gallery_cdn_origin": "https://assets.st-dash.com",
+  "web_cdn_origin": "https://assets.st-dash.com"
 }

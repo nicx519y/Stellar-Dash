@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 
 const variant = process.argv[2];
@@ -29,6 +29,10 @@ const htmlFiles = artifactFiles.filter((file) => file.endsWith('.html'));
 const referencedChunks = new Set();
 const markerHits = new Map(mockMarkers.map((marker) => [marker, []]));
 const violations = [];
+const assetBase = process.env.NEXT_PUBLIC_WEB_ASSET_BASE || '';
+if (assetBase && (variant !== 'hosted' || !/^https:\/\/[a-z0-9.-]+\/cdn\/web\/[a-f0-9]{32}$/.test(assetBase))) {
+  throw new Error('Invalid Hosted CDN asset base');
+}
 
 for (const file of artifactFiles) {
   const source = readFileSync(file, 'utf8');
@@ -39,8 +43,11 @@ for (const file of artifactFiles) {
   }
   if (file.endsWith('.html')) {
     for (const match of source.matchAll(/(?:src|href)=["']([^"']+\.js(?:\?[^"']*)?)["']/g)) {
-      const relative = match[1].replace(/[?#].*$/, '').replace(/^\//, '');
+      const reference = match[1].replace(/[?#].*$/, '');
+      const relative = (assetBase && reference.startsWith(assetBase + '/')
+        ? reference.slice(assetBase.length) : reference).replace(/^\//, '');
       if (relative.startsWith('_next/static/')) {
+        if (assetBase && !reference.startsWith(assetBase + '/')) violations.push('same-origin chunk in CDN build');
         referencedChunks.add(relative);
       }
     }
@@ -72,6 +79,12 @@ if (variant === 'hosted') {
 
 if (violations.length > 0) {
   throw new Error(`${variant} build isolation failed:\n${violations.join('\n')}`);
+}
+const metadataPath = path.join(buildRoot, 'cdn-assets.json');
+if (assetBase) {
+  writeFileSync(metadataPath, JSON.stringify({ schema: 1, origin: new URL(assetBase).origin, version: assetBase.split('/').pop() }));
+} else {
+  rmSync(metadataPath, { force: true });
 }
 
 console.log(

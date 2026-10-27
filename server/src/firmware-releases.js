@@ -8,6 +8,7 @@ const Database = require('better-sqlite3');
 const multer = require('multer');
 const { readFlatZipEntries, validateUploadedOtaPackage } = require('./action');
 const { validateInstallContract, validateInstallArtifact } = require('./release-install-contract');
+const { parseGalleryCdnOrigin } = require('./gallery-cdn');
 
 const MAX_BUNDLE_BYTES = 12 * 1024 * 1024;
 const ZIP_LIMITS = { maxEntrySize: 4 * 1024 * 1024, maxTotalSize: MAX_BUNDLE_BYTES, maxEntries: 6 };
@@ -239,7 +240,39 @@ class FirmwareReleaseStore {
     }
 }
 
-function initFirmwareReleaseRoutes(app, { store, adminAccess, deviceAccess }) {
+function initFirmwareReleaseRoutes(app, { store, adminAccess, deviceAccess, cdnOrigin = '' }) {
+    cdnOrigin = parseGalleryCdnOrigin(cdnOrigin);
+    // This namespace is public. Authenticated deployments must keep their gate.
+    if (cdnOrigin && deviceAccess.direct !== true) throw new Error('Firmware CDN requires public direct device access');
+    const publicDetail = id => {
+        const release = store.publicDetail(id);
+        return cdnOrigin && release.installable ? { ...release,
+            downloadUrl: `${cdnOrigin}/cdn/firmware/${encodeURIComponent(release.id)}/${release.bundleSha256}/release.zip`,
+        } : release;
+    };
+    if (cdnOrigin) {
+        app.use('/cdn/firmware', (_req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
+        app.get('/cdn/firmware/:id/:hash/release.zip', (req, res, next) => {
+            try {
+                const release = store.publicDetail(req.params.id);
+                if (!/^[a-f0-9]{64}$/.test(req.params.hash) || req.params.hash !== release.bundleSha256) {
+                    throw new ReleaseError('RELEASE_NOT_FOUND', 'Release not found', 404);
+                }
+                // Reuse the signed package validator; never expose the raw upload directory.
+                const { bytes } = store.download(release.id);
+                res.set({
+                    'Cache-Control': 'public, max-age=60, must-revalidate',
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Expose-Headers': 'X-Content-SHA256, Content-Length, Content-Disposition',
+                    'Cross-Origin-Resource-Policy': 'cross-origin',
+                    'Timing-Allow-Origin': '*',
+                    'X-Content-SHA256': release.bundleSha256,
+                });
+                res.type('application/zip').attachment(`XORA-${release.manifest.version}.zip`).send(bytes);
+            } catch (error) { next(error); }
+        });
+        app.use('/cdn/firmware', (_req, res) => res.status(404).json({ success: false, error: 'RELEASE_NOT_FOUND' }));
+    }
     const base = '/api/admin/firmware';
     const manage = adminAccess.requireAdmin({ serviceScope: 'firmware.manage' });
     const human = adminAccess.requireAdmin({ humanOnly: true });
@@ -273,7 +306,10 @@ function initFirmwareReleaseRoutes(app, { store, adminAccess, deviceAccess }) {
         } catch (error) { next(error); }
     }, wrap((req, res) => ok(res, store.mutate(req.params.id, req.body?.revision, 'delete', {}, req.authenticatedAdmin))));
     app.use('/api/firmware-releases', deviceAccess.requireSession(['config.read']), (_req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
-    app.get('/api/firmware-releases', wrap((req, res) => ok(res, store.list(req.query, true))));
+    app.get('/api/firmware-releases', wrap((req, res) => {
+        const catalog = store.list(req.query, true);
+        ok(res, { ...catalog, items: catalog.items.map(r => publicDetail(r.id)) });
+    }));
     app.get('/api/firmware-releases/verification-key', wrap((_req, res) => {
         const key = store.publicKey?.type === 'public' ? store.publicKey : crypto.createPublicKey(store.publicKey);
         ok(res, key.export({ format: 'jwk' }));
@@ -283,7 +319,7 @@ function initFirmwareReleaseRoutes(app, { store, adminAccess, deviceAccess }) {
         res.set('X-Content-SHA256', release.bundleSha256);
         res.type('application/zip').attachment(`XORA-${release.manifest.version}.zip`).send(bytes);
     }));
-    app.get('/api/firmware-releases/:id', wrap((req, res) => ok(res, store.publicDetail(req.params.id))));
+    app.get('/api/firmware-releases/:id', wrap((req, res) => ok(res, publicDetail(req.params.id))));
 }
 
 module.exports = { FirmwareReleaseStore, initFirmwareReleaseRoutes, validateBundle, validateManifest, MAX_BUNDLE_BYTES };

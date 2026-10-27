@@ -2,7 +2,7 @@
 
 @font-face {
   font-family: 'Sarasa Mono SC';
-  src: url('/fonts/sarasa-mono-sc/sarasa-mono-sc-v1.0.42-regular-latin.woff2') format('woff2');
+  src: url('./sarasa-mono-sc-v1.0.42-regular-latin.woff2') format('woff2');
   font-weight: 400;
   font-style: normal;
   font-display: swap;
@@ -11,7 +11,7 @@
 
 @font-face {
   font-family: 'Sarasa Mono SC';
-  src: url('/fonts/sarasa-mono-sc/sarasa-mono-sc-v1.0.42-regular-cjk-common.woff2') format('woff2');
+  src: url('./sarasa-mono-sc-v1.0.42-regular-cjk-common.woff2') format('woff2');
   font-weight: 400;
   font-style: normal;
   font-display: swap;
@@ -20,7 +20,7 @@
 
 @font-face {
   font-family: 'Sarasa Mono SC';
-  src: url('/fonts/sarasa-mono-sc/sarasa-mono-sc-v1.0.42-regular-cjk-other.woff2') format('woff2');
+  src: url('./sarasa-mono-sc-v1.0.42-regular-cjk-other.woff2') format('woff2');
   font-weight: 400;
   font-style: normal;
   font-display: swap;
@@ -29,7 +29,7 @@
 
 @font-face {
   font-family: 'Sarasa Mono SC';
-  src: url('/fonts/sarasa-mono-sc/sarasa-mono-sc-v1.0.42-regular-punctuation.woff2') format('woff2');
+  src: url('./sarasa-mono-sc-v1.0.42-regular-punctuation.woff2') format('woff2');
   font-weight: 400;
   font-style: normal;
   font-display: swap;
@@ -38,7 +38,7 @@
 
 @font-face {
   font-family: 'Sarasa Mono SC';
-  src: url('/fonts/sarasa-mono-sc/sarasa-mono-sc-v1.0.42-regular-symbols.woff2') format('woff2');
+  src: url('./sarasa-mono-sc-v1.0.42-regular-symbols.woff2') format('woff2');
   font-weight: 400;
   font-style: normal;
   font-display: swap;
@@ -47,7 +47,7 @@
 
 @font-face {
   font-family: 'Sarasa Mono SC';
-  src: url('/fonts/sarasa-mono-sc/sarasa-mono-sc-v1.0.42-bold-latin.woff2') format('woff2');
+  src: url('./sarasa-mono-sc-v1.0.42-bold-latin.woff2') format('woff2');
   font-weight: 700;
   font-style: normal;
   font-display: swap;
@@ -56,7 +56,7 @@
 
 @font-face {
   font-family: 'Sarasa Mono SC';
-  src: url('/fonts/sarasa-mono-sc/sarasa-mono-sc-v1.0.42-bold-cjk-common.woff2') format('woff2');
+  src: url('./sarasa-mono-sc-v1.0.42-bold-cjk-common.woff2') format('woff2');
   font-weight: 700;
   font-style: normal;
   font-display: swap;
@@ -65,7 +65,7 @@
 
 @font-face {
   font-family: 'Sarasa Mono SC';
-  src: url('/fonts/sarasa-mono-sc/sarasa-mono-sc-v1.0.42-bold-cjk-other.woff2') format('woff2');
+  src: url('./sarasa-mono-sc-v1.0.42-bold-cjk-other.woff2') format('woff2');
   font-weight: 700;
   font-style: normal;
   font-display: swap;
@@ -74,7 +74,7 @@
 
 @font-face {
   font-family: 'Sarasa Mono SC';
-  src: url('/fonts/sarasa-mono-sc/sarasa-mono-sc-v1.0.42-bold-punctuation.woff2') format('woff2');
+  src: url('./sarasa-mono-sc-v1.0.42-bold-punctuation.woff2') format('woff2');
   font-weight: 700;
   font-style: normal;
   font-display: swap;
@@ -83,7 +83,7 @@
 
 @font-face {
   font-family: 'Sarasa Mono SC';
-  src: url('/fonts/sarasa-mono-sc/sarasa-mono-sc-v1.0.42-bold-symbols.woff2') format('woff2');
+  src: url('./sarasa-mono-sc-v1.0.42-bold-symbols.woff2') format('woff2');
   font-weight: 700;
   font-style: normal;
   font-display: swap;

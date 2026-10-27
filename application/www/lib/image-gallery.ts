@@ -30,6 +30,38 @@ export type GalleryImageFingerprint = {
   payloadCrc32: number;
 };
 
+/** Public CDN assets never enter the device session client or receive cookies. */
+export function fetchGalleryAsset(
+  image: Pick<GalleryImage, 'id' | 'scope'>,
+  assetUrl: string,
+  authorizedFetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>,
+  init: RequestInit = {},
+): Promise<Response> {
+  if (image.scope === 'system' && /^https?:\/\//i.test(assetUrl)) {
+    const url = new URL(assetUrl);
+    const parts = url.pathname.split('/');
+    if (url.protocol !== 'https:' || url.username || url.password || url.port ||
+        parts.length !== 6 || parts[1] !== 'cdn' || parts[2] !== 'gallery' ||
+        parts[3] !== image.id || !/^[a-z0-9]+-[a-f0-9]{16}$/.test(parts[4]) ||
+        !['source', 'preview', 'device'].includes(parts[5])) {
+      throw new Error('Invalid public gallery asset URL');
+    }
+    return fetch(url.href, {
+      ...init,
+      method: 'GET',
+      body: undefined,
+      headers: undefined,
+      credentials: 'omit',
+      redirect: 'error',
+      mode: 'cors',
+      cache: init.cache ?? 'force-cache',
+    });
+  }
+  return image.scope === 'system'
+    ? authorizedFetch(assetUrl, init)
+    : fetch(assetUrl, { ...init, credentials: 'same-origin', redirect: 'error' });
+}
+
 // Existing gallery thumbnails are PNGs. Use the original GIF for animation,
 // including images uploaded before animated gallery previews were supported.
 export function galleryPreviewUrl(image: Pick<GalleryImage, 'sourceMime' | 'sourceUrl' | 'previewUrl'>): string {

@@ -1,0 +1,15 @@
+{
+  "Version": "1",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "cdn:SetCdnDomainSSLCertificate",
+      "Resource": "acs:cdn:*:*:domain/assets.st-dash.com",
+      "Condition": {
+        "IpAddress": {
+          "acs:SourceIp": "182.92.72.220"
+        }
+      }
+    }
+  ]
+}

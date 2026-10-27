@@ -1,5 +1,7 @@
 'use client';
 
+import { publicAssetUrl } from '@/lib/public-asset';
+
 import { ExclusiveDialog } from '@/components/ui/exclusive-dialog';
 import { OVERLAY_PRIORITY } from '@/lib/overlay-coordinator';
 import {
@@ -265,7 +267,7 @@ export function UserAuthControl() {
           >
             <Avatar
               name={session.user.displayName || session.user.email}
-              src={session.user.avatarUrl || DEFAULT_ACCOUNT_AVATAR_SRC}
+              src={publicAssetUrl(session.user.avatarUrl || DEFAULT_ACCOUNT_AVATAR_SRC)}
               size="md"
               colorPalette="green"
             />

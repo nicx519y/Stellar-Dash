@@ -1,4 +1,6 @@
 'use client';
+
+import { publicAssetUrl } from '@/lib/public-asset';
 import { FeedbackSlot } from '@/components/ui/feedback-slot';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Badge, Box, Button, Flex, HStack, Image, SimpleGrid, Text, VStack } from '@chakra-ui/react';
@@ -139,7 +141,7 @@ export function RxReceiverSlot({ disabled = false }: { disabled?: boolean }) {
       <VStack align="stretch" gap={4}>
         <Flex align="start" justify="space-between" gap={3} wrap="wrap">
           <HStack align="start" gap={3} flex="1" minW="200px">
-            <Image src="/images/dongle-pairing.png" alt="" aria-hidden="true" width="54px" height="54px" flexShrink={0} objectFit="contain" />
+            <Image src={publicAssetUrl('/images/dongle-pairing.png')} alt="" aria-hidden="true" width="54px" height="54px" flexShrink={0} objectFit="contain" />
             <Box minW={0}>
               <Text fontSize="xs" color="fg.muted" mb={1}>{t.title}</Text>
               <Text fontSize="sm" fontWeight="medium" lineHeight="1.5" overflowWrap="anywhere">

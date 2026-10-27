@@ -5,6 +5,7 @@ import { calculateSHA256 } from '../firmware-utils';
 import type { PublicFirmwareRelease, FirmwareReleaseManifest } from '../admin/firmware-types';
 import type { DeviceCommandClient } from './device-command-client';
 import { DeviceTransportError } from './types';
+import { fetchReleaseBundle } from './release-download';
 
 export type TxIapTransferMode = 'unknown' | 'small-packet' | 'dma';
 export interface FirmwareInventory {
@@ -90,7 +91,7 @@ const fixed = (bytes: Uint8Array, start: number, length: number) => {
 export async function downloadRelease(client: DeviceCommandClient, id: string, inventory: FirmwareInventory, progress: (p: ReleaseProgress) => void = () => {}): Promise<PreparedRelease> {
   const release = await api<PublicFirmwareRelease>(client, `/api/firmware-releases/${encodeURIComponent(id)}`);
   const reason = releaseBlockReason(release, inventory); if (reason) throw new Error(reason);
-  const response = await client.authorizedFetch(`/api/firmware-releases/${encodeURIComponent(id)}/download`, { cache: 'no-store' }, ['config.read']);
+  const response = await fetchReleaseBundle(release, (path, init) => client.authorizedFetch(path, init, ['config.read']));
   if (!response.ok) throw new Error('Release download rejected');
   const total = Number(response.headers.get('Content-Length')) || undefined;
   if (total && total > 12 * 1024 * 1024) throw new Error('Package exceeds 12 MiB');

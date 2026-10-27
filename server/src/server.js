@@ -35,7 +35,7 @@ const {
     parseAllowedOrigins,
     parseTrustedProxyHops,
     createExactCorsOptions,
-    securityHeaders
+    createSecurityHeaders
 } = require('./http-security');
 const {
     LegacyDownloadTicketStore,
@@ -46,6 +46,7 @@ const {
     resolveHostedWebConfigOptions
 } = require('./hosted-webconfig');
 const { resolveServerStoragePaths } = require('./server-paths');
+const { installWebAssetRoutes } = require('./web-assets');
 const { FirmwareReleaseStore, initFirmwareReleaseRoutes } = require('./firmware-releases');
 const { DeviceAccountStore } = require('./device-account-store');
 const { UserAccountStore } = require('./user-account-store');
@@ -66,6 +67,7 @@ const {
     LocalGalleryStorage,
     initImageGalleryRoutes
 } = require('./image-gallery');
+const { parseGalleryCdnOrigin, initPublicGalleryAssetRoutes } = require('./gallery-cdn');
 
 // 引入网络接口入口模块
 const { initAllRoutes } = require('./action');
@@ -137,6 +139,8 @@ const allowedWebConfigOrigins = parseAllowedOrigins(
     process.env.WEB_CONFIG_ORIGINS,
     `https://${domain_name}`
 );
+const galleryCdnOrigin = parseGalleryCdnOrigin(process.env.GALLERY_CDN_ORIGIN);
+const webCdnOrigin = parseGalleryCdnOrigin(process.env.WEB_CONFIG_CDN_ORIGIN);
 
 // 中间件配置
 app.disable('x-powered-by');
@@ -147,8 +151,9 @@ if (trustedProxyHops > 0) {
      */
     app.set('trust proxy', trustedProxyHops);
 }
-app.use(securityHeaders);
+app.use(createSecurityHeaders({ galleryCdnOrigin, webCdnOrigin }));
 app.use(cors(createExactCorsOptions(allowedWebConfigOrigins)));
+installWebAssetRoutes(app, process.env.WEB_CONFIG_CDN_ASSET_DIR);
 app.use(express.json({ limit: '64kb', strict: true }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -263,8 +268,10 @@ initImageGalleryRoutes(app, {
     storage: imageGalleryStorage,
     emailAuth,
     deviceAuth: deviceAccess,
-    adminAccess
+    adminAccess,
+    cdnOrigin: galleryCdnOrigin,
 });
+initPublicGalleryAssetRoutes(app, { store: imageGalleryStore, storage: imageGalleryStorage });
 initAllRoutes(app, storage_manager, config, validateDeviceAuth, requireAdminAuth);
 const firmwareReleaseStore = new FirmwareReleaseStore({
     databasePath: storagePaths.firmwareReleaseDatabase,
@@ -273,7 +280,7 @@ const firmwareReleaseStore = new FirmwareReleaseStore({
     legacyStore: storage_manager
 });
 app.locals.firmwareReleaseStore = firmwareReleaseStore;
-initFirmwareReleaseRoutes(app, { store: firmwareReleaseStore, adminAccess, deviceAccess });
+initFirmwareReleaseRoutes(app, { store: firmwareReleaseStore, adminAccess, deviceAccess, cdnOrigin: webCdnOrigin });
 
 /*
  * The V2 WebConfig is a normal HTTPS-hosted static export. API and download
@@ -284,6 +291,9 @@ initFirmwareReleaseRoutes(app, { store: firmwareReleaseStore, adminAccess, devic
  * omit the directory while preserving account and administrator routes.
  */
 const hostedWebConfigOptions = resolveHostedWebConfigOptions();
+hostedWebConfigOptions.galleryCdnOrigin = galleryCdnOrigin;
+hostedWebConfigOptions.webCdnOrigin = webCdnOrigin;
+hostedWebConfigOptions.legacyAssetDir = process.env.WEB_CONFIG_CDN_ASSET_DIR;
 hostedWebConfigOptions.profileSlugs =
     deviceAuthV2.webConfigTargetPolicy?.profileSlugs || [];
 const hostedWebConfig = installHostedWebConfig(app, hostedWebConfigOptions);

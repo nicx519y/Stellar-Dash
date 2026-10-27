@@ -12,7 +12,7 @@
 | 设备认证 | [device-auth-v2.js](src/device-auth-v2.js)、[device-auth.js](src/device-auth.js)、[device-account-store.js](src/device-account-store.js) |
 | 固件与下载权限 | [firmware.js](src/firmware.js)、[download-access.js](src/download-access.js) |
 | 持久化路径 | [server-paths.js](src/server-paths.js) |
-| WebConfig / admin 部署与运维 | [部署指南](../docs/webconfig-admin-deployment.md)、[deploy_xora.py](tools/deploy_xora.py)；现有服务器使用本机 `.hbox/deploy/config.json` |
+| WebConfig / admin CDN 部署 | [CDN 部署指南](../docs/webconfig-cdn-deployment.md)、[deploy_xora.py](tools/deploy_xora.py)；现有服务器使用本机 `.hbox/deploy/config.json`，首次初始化与账户运维见 [服务端指南](../docs/webconfig-admin-deployment.md) |
 
 ## 行为与数据边界
 
@@ -20,6 +20,8 @@
 - 直连设备访问是当前 WebConfig 产品行为；本地 loopback 启动方式和用户登录来源检查仍按 [Web README](../application/www/README.md) 处理。
 - 数据目录由 `server-paths.js` 解析；production 要求显式绝对路径。测试使用临时数据库/上传目录，不能清理或迁移真实 `data`、`uploads`、`gallery-assets` 来让测试通过。
 - 保留固件签名、目标硬件、版本和访问权限检查；路由或账户变动不构成发布固件、修改真实账户权限或发送邮件的授权。
+- 已发布可安装包通过 `/cdn/firmware/<发布ID>/<SHA-256>/release.zip` 分发，源站沿用完整签名校验；缓存限 60 秒。上传、草稿、发布状态和验签公钥 API 保持原站点；下架不能代替 CDN 紧急刷新，详情见 CDN 部署指南。
+- 生产网页公开静态资源从 `/cdn/web/<构建版本>/` 分发；只提供部署工具发布的清单文件，资源目录独立于 current，旧版本必须保留供未刷新页面与回滚使用。部署须完成源文件摘要、同源页面/API、安全头及 CDN 内容/CORS 校验。HTML、路由数据、账户/管理 API 不进入共享缓存，不能以开启全站缓存替代 CDN 发布流程。
 - 旧 `src/auth.js` 已不存在；不要按过时目录说明新增重复认证层。现有文档与代码冲突时核对实际路由及测试。
 
 ## 开发与验证

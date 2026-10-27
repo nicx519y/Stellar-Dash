@@ -36,6 +36,7 @@ export interface FirmwareAuditEvent {
   after: unknown;
 }
 export interface PublicFirmwareRelease {
+  downloadUrl?: string;
   bundleSha256?: string;
   installable?: boolean;
   id: string;

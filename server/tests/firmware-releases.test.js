@@ -77,6 +77,48 @@ function bundle(context, transform = () => {}, version = '2.0.0', v2 = false, pr
     return { file, data, manifest, entries };
 }
 
+test('CDN exposes only published installable signed bundles, with bounded cache and anonymous CORS', { timeout: 20000 }, async t => {
+    const c = setup(t); const b = bundle(c, () => {}, '3.0.0', true, 2);
+    const job = c.store.import(b.file, actor);
+    const app = express();
+    const adminAccess = { requireAdmin: () => (_req, res) => res.sendStatus(401) };
+    initFirmwareReleaseRoutes(app, { store: c.store, adminAccess, deviceAccess: createDirectDeviceAccess({}), cdnOrigin: 'https://assets.example.com' });
+    app.use((e, _req, res, _next) => res.status(e.status || 500).json({ error: e.code }));
+    const server = app.listen(0, '127.0.0.1'); await new Promise(resolve => server.once('listening', resolve));
+    t.after(() => { server.closeAllConnections(); return new Promise(resolve => server.close(resolve)); });
+    const request = p => fetch(`http://127.0.0.1:${server.address().port}${p}`, { signal: AbortSignal.timeout(5000) });
+    const assetPath = `/cdn/firmware/${job.releaseId}/${sha(b.data)}/release.zip`;
+    let response = await request(assetPath);
+    assert.equal(response.status, 404); assert.equal(response.headers.get('cache-control'), 'no-store');
+    let r = c.store.mutate(job.releaseId, 1, 'edit', { notes: 'Published fixture' }, actor);
+    r = c.store.mutate(r.id, r.revision, 'publish', {}, actor);
+    response = await request(`/api/firmware-releases/${r.id}`);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+    assert.equal((await response.json()).data.downloadUrl, 'https://assets.example.com' + assetPath);
+    response = await request(assetPath);
+    assert.equal(response.status, 200); assert.equal(response.headers.get('cache-control'), 'public, max-age=60, must-revalidate');
+    assert.equal(response.headers.get('access-control-allow-origin'), '*');
+    assert.match(response.headers.get('access-control-expose-headers'), /X-Content-SHA256/);
+    assert.equal(response.headers.get('cross-origin-resource-policy'), 'cross-origin');
+    assert.equal(response.headers.get('x-content-sha256'), sha(b.data));
+    assert.deepEqual(Buffer.from(await response.arrayBuffer()), b.data);
+    for (const p of [assetPath.replace(sha(b.data), '0'.repeat(64)), '/cdn/firmware/no.zip', '/cdn/firmware/tmp/file.zip']) {
+        response = await request(p); assert.equal(response.status, 404); assert.equal(response.headers.get('cache-control'), 'no-store');
+    }
+    fs.appendFileSync(c.store.bundlePath(sha(b.data)), 'corruption');
+    response = await request(assetPath); assert.equal(response.status, 400); assert.equal(response.headers.get('cache-control'), 'no-store');
+    fs.writeFileSync(c.store.bundlePath(sha(b.data)), b.data);
+    c.store.mutate(r.id, r.revision, 'withdraw', {}, actor);
+    response = await request(assetPath); assert.equal(response.status, 404); assert.equal(response.headers.get('cache-control'), 'no-store');
+    const legacy = c.store.import(bundle(c, () => {}, '3.0.1').file, actor);
+    r = c.store.mutate(legacy.releaseId, 1, 'edit', { notes: 'Catalog only' }, actor);
+    r = c.store.mutate(r.id, r.revision, 'publish', {}, actor);
+    assert.equal((await (await request(`/api/firmware-releases/${r.id}`)).json()).data.downloadUrl, undefined);
+    assert.equal((await request(`/cdn/firmware/${r.id}/${r.bundleSha256}/release.zip`)).status, 409);
+    assert.throws(() => initFirmwareReleaseRoutes(express(), { store: c.store, adminAccess,
+        deviceAccess: { requireSession() {} }, cdnOrigin: 'https://assets.example.com' }), /public direct/);
+});
+
 test('signed complete package stays draft until manual publish; revision, withdrawal and audit survive reopening', t => {
     const c = setup(t); const b = bundle(c);
     const job = c.store.import(b.file, actor); assert.equal(job.status, 'completed');

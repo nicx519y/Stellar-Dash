@@ -1,0 +1,11 @@
+[Unit]
+Description=Retry and verify XORA CDN certificate synchronization
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=15min
+RandomizedDelaySec=60
+Unit=xora-cdn-cert-sync.service
+
+[Install]
+WantedBy=timers.target

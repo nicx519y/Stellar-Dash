@@ -1,0 +1,9 @@
+#!/bin/sh
+# Certbot also invokes deploy hooks for other lineages; Python filters those.
+/opt/xora/cdn-cert/venv/bin/python /opt/xora/cdn-cert/cdn_certificate.py sync --wait-seconds 60
+result=$?
+# Pending edge propagation is retried by xora-cdn-cert-sync.timer.
+if [ "$result" -eq 3 ]; then
+    exit 0
+fi
+exit "$result"

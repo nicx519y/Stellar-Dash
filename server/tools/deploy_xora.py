@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import base64
 import hashlib
+import gzip
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -25,6 +26,7 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+import urllib.parse
 import uuid
 
 ROOT = Path('/opt/xora')
@@ -93,7 +95,7 @@ def validate_config(config):
     defaults = dict(ssh_port=22, ssh_key='', port=3000, node='/usr/bin/node')
     defaults.update(config)
     defaults.setdefault('admin_domain', defaults.get('domain'))
-    need(set(defaults) == {'host', 'user', 'ssh_port', 'ssh_key', 'domain', 'admin_domain', 'port', 'node', 'email_from'},
+    need(set(defaults) - {'gallery_cdn_origin', 'web_cdn_origin'} == {'host', 'user', 'ssh_port', 'ssh_key', 'domain', 'admin_domain', 'port', 'node', 'email_from'},
          'Config must contain host, user, domain, email_from and only documented fields')
     for name in ('host', 'domain', 'admin_domain'):
         need(isinstance(defaults[name], str) and re.fullmatch(r'[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?', defaults[name]), f'Invalid {name}')
@@ -106,13 +108,23 @@ def validate_config(config):
     need(re.fullmatch(r'/[A-Za-z0-9_./-]+', defaults['node']) and '..' not in defaults['node'].split('/'), 'Invalid absolute Node path')
     need(re.fullmatch(r'[A-Za-z0-9 ._-]+ <[A-Za-z0-9._+-]+@[A-Za-z0-9.-]+>', defaults['email_from']), 'email_from must look like XORA <no-reply@auth.example.com>')
     need(isinstance(defaults['ssh_key'], str) and '\n' not in defaults['ssh_key'], 'Invalid ssh_key')
+    for cdn_key in ('gallery_cdn_origin', 'web_cdn_origin'):
+        if cdn_key not in defaults:
+            continue
+        origin = defaults[cdn_key]
+        need(isinstance(origin, str) and (origin == '' or re.fullmatch(r'https://[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?', origin)),
+             f'{cdn_key} must be an exact HTTPS origin')
+        if origin:
+            host = origin.removeprefix('https://')
+            need('.' in host and all(re.fullmatch(r'[a-z0-9](?:[a-z0-9-]*[a-z0-9])?', label) for label in host.split('.')),
+                 f'{cdn_key} must have a valid DNS hostname')
     return defaults
 
 
 def environment(config):
     origin = 'https://' + config['domain']
     origins = ','.join(dict.fromkeys([origin, 'https://' + config['admin_domain']]))
-    return dict(NODE_ENV='production', PORT=str(config['port']), LISTEN_HOST='127.0.0.1',
+    values = dict(NODE_ENV='production', PORT=str(config['port']), LISTEN_HOST='127.0.0.1',
                 TRUST_PROXY_HOPS='1', DOMAIN_NAME=config['domain'], SERVER_URL=origin, DOMAIN_URL=origin,
                 WEB_CONFIG_ORIGINS=origins, WEB_CONFIG_STATIC_DIR=str(ROOT / 'current/webconfig'),
                 WEB_CONFIG_REQUIRE_STATIC='1', HBOX_SERVER_DATA_DIR=str(STATE / 'data'),
@@ -121,6 +133,12 @@ def environment(config):
                 USER_AUTH_ENABLED='1', USER_AUTH_PUBLIC_ORIGIN=origin, USER_AUTH_ALLOWED_ORIGINS=origins,
                 USER_AUTH_EMAIL_FROM=config['email_from'],
                 RESEND_API_KEY_FILE=str(ETC / 'secrets/resend-api-key'))
+    if config.get('gallery_cdn_origin'):
+        values['GALLERY_CDN_ORIGIN'] = config['gallery_cdn_origin']
+    if config.get('web_cdn_origin'):
+        values['WEB_CONFIG_CDN_ORIGIN'] = config['web_cdn_origin']
+        values['WEB_CONFIG_CDN_ASSET_DIR'] = str(ROOT / 'web-assets')
+    return values
 
 
 def templates(config):
@@ -180,6 +198,12 @@ server {{
     ssl_protocols TLSv1.2 TLSv1.3;
     client_max_body_size 64m;
 {redirects}
+    location ^~ /.well-known/acme-challenge/ {{
+        root /var/lib/letsencrypt;
+        default_type text/plain;
+        try_files $uri =404;
+        add_header Cache-Control "no-store" always;
+    }}
     location / {{
         proxy_pass http://127.0.0.1:{config['port']};
         proxy_http_version 1.1;
@@ -209,7 +233,32 @@ def safe_name(name):
          or name.startswith(('server/src/', 'server/scripts/', 'webconfig/', 'resources/xora/')), f'Unexpected bundle path: {name}')
 
 
+def web_cdn_metadata(root):
+    metadata = root / 'cdn-assets.json'
+    if not metadata.exists():
+        return None
+    need(not metadata.is_symlink(), 'Linked CDN metadata')
+    value = json.loads(metadata.read_text(encoding='utf-8'))
+    need(set(value) == {'schema', 'origin', 'version'} and value['schema'] == 1
+         and isinstance(value['version'], str) and re.fullmatch(r'[a-f0-9]{32}', value['version']), 'Invalid CDN asset metadata')
+    validate_config({'host': 'host.example.com', 'user': 'root', 'domain': 'config.example.com',
+                     'email_from': 'XORA <no-reply@example.com>', 'web_cdn_origin': value['origin']})
+    need(value['origin'], 'Empty CDN asset origin')
+    return value
+
+
+def cdn_asset_base(metadata):
+    return metadata['origin'] + '/cdn/web/' + metadata['version']
+
+
+def is_web_asset(relative):
+    return (relative.startswith(('fonts/', 'images/')) or
+            (relative.startswith('_next/static/') and not relative.endswith(('.map', '.html', '.txt'))))
+
+
 def verify_export(root):
+    metadata = web_cdn_metadata(root)
+    base = cdn_asset_base(metadata) if metadata else ''
     for page in PAGES:
         need((root / page).is_file(), f'Missing Hosted page: {page}')
     need((root / '_next/static').is_dir(), 'Missing Hosted chunks')
@@ -220,19 +269,31 @@ def verify_export(root):
             content = path.read_bytes()
             need(not any(marker in content for marker in MOCK_MARKERS), f'Mock code found in {path.name}')
             if path.suffix == '.html':
-                chunks.update(re.findall(rb'(?:src|href)=["\'](/_next/static/[^"\']+\.js)(?:\?[^"\']*)?["\']', content))
+                for reference in re.findall(rb'(?:src|href)=["\']([^"\']+\.js)(?:\?[^"\']*)?["\']', content):
+                    url = reference.decode('utf-8')
+                    if '/_next/static/' not in url:
+                        continue
+                    if base:
+                        need(url.startswith(base + '/_next/static/'), 'CDN build has an unexpected chunk origin/version')
+                        url = url[len(base):]
+                    need(url.startswith('/_next/static/'), 'CDN chunk has no valid build metadata')
+                    chunks.add(url)
     need(chunks, 'Hosted HTML has no referenced JavaScript chunks')
     for chunk in chunks:
-        need((root / chunk.decode().lstrip('/')).is_file(), 'Hosted HTML references a missing chunk')
+        need((root / chunk.lstrip('/')).is_file(), 'Hosted HTML references a missing chunk')
 
 
-def build_package(repo, output, skip_build=False):
+def build_package(repo, output, skip_build=False, cdn_origin=''):
     web = repo / 'application/www'
     if not skip_build:
         npm = shutil.which('npm')
         need(npm, 'npm is not installed')
-        run([npm, 'run', 'build:hosted'], cwd=web, timeout=600)
+        asset_base = cdn_origin + '/cdn/web/' + uuid.uuid4().hex if cdn_origin else ''
+        run([npm, 'run', 'build:hosted'], cwd=web, timeout=600,
+            env={**os.environ, 'NEXT_PUBLIC_WEB_ASSET_BASE': asset_base})
     verify_export(web / 'build')
+    cdn = web_cdn_metadata(web / 'build')
+    need((cdn['origin'] if cdn else '') == cdn_origin, 'Export CDN origin differs from deployment config; rebuild Hosted')
     release = time.strftime('%Y%m%d-%H%M%S') + '-' + uuid.uuid4().hex[:8]
     output.mkdir(parents=True, exist_ok=True)
     stage = output / release
@@ -265,6 +326,111 @@ def build_package(repo, output, skip_build=False):
     inspect_bundle(archive)
     print(f'PACKAGE={archive}\nSHA256={checksum}\nRELEASE={release}', flush=True)
     return archive
+
+
+def publish_web_assets(release_dir, config):
+    """Atomically add immutable, hash-checked assets; never remove old versions."""
+    metadata = web_cdn_metadata(release_dir / 'webconfig')
+    if not metadata:
+        return  # Legacy retained releases remain usable for rollback.
+    need(metadata['origin'] == config.get('web_cdn_origin'), 'CDN artifact/config origin mismatch')
+    manifest = json.loads((release_dir / 'manifest.json').read_text(encoding='utf-8'))
+    selected = {name.removeprefix('webconfig/'): checksum for name, checksum in manifest['files'].items()
+                if name.startswith('webconfig/') and is_web_asset(name.removeprefix('webconfig/'))}
+    need(selected and any(name.startswith('_next/static/') for name in selected), 'Empty CDN asset publication')
+    for relative, checksum in selected.items():
+        safe_name('webconfig/' + relative)
+        source = release_dir / 'webconfig' / relative
+        need(source.resolve().is_relative_to((release_dir / 'webconfig').resolve()) and not source.is_symlink()
+             and digest(source) == checksum, 'CDN source hash/path mismatch')
+    catalog = {'schema': 1, 'version': metadata['version'], 'files': selected}
+    root = ROOT / 'web-assets'
+    need(not root.is_symlink(), 'Linked CDN asset root')
+    root.mkdir(exist_ok=True, mode=0o755)
+    target = root / metadata['version']
+    if target.exists():
+        need(not target.is_symlink() and json.loads((target / 'manifest.json').read_text()) == catalog,
+             'Immutable CDN asset version already exists with different content')
+        for name, checksum in selected.items():
+            file = target / 'files' / name
+            need(not file.is_symlink() and file.resolve().is_relative_to(target) and digest(file) == checksum,
+                 'Published CDN asset was modified')
+        return
+    temporary = root / ('.incoming-' + uuid.uuid4().hex)
+    temporary.mkdir(mode=0o755)
+    try:
+        for relative, checksum in selected.items():
+            destination = temporary / 'files' / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(release_dir / 'webconfig' / relative, destination)
+            destination.chmod(0o644)
+            need(digest(destination) == checksum, 'CDN copied asset hash mismatch')
+        (temporary / 'manifest.json').write_text(json.dumps(catalog), encoding='utf-8')
+        (temporary / 'manifest.json').chmod(0o644)
+        temporary.rename(target)
+    finally:
+        if temporary.exists():
+            shutil.rmtree(temporary)
+    print(f'CDN_ASSETS={target}; files={len(selected)}; old versions retained', flush=True)
+
+
+def retain_legacy_web_assets(previous):
+    if previous is None:
+        return
+    manifest = json.loads((previous / 'manifest.json').read_text(encoding='utf-8'))
+    root = ROOT / 'web-assets'
+    need(not root.is_symlink(), 'Linked CDN asset root')
+    root.mkdir(exist_ok=True, mode=0o755)
+    copied = 0
+    for name, checksum in manifest['files'].items():
+        if not name.startswith('webconfig/_next/static/') or name.endswith('.map'):
+            continue
+        safe_name(name)
+        source = previous / name
+        need(not source.is_symlink() and source.resolve().is_relative_to(previous) and digest(source) == checksum,
+             'Legacy static asset hash/path mismatch')
+        target = root / 'legacy' / name.removeprefix('webconfig/')
+        if target.exists():
+            need(not target.is_symlink() and target.resolve().is_relative_to(root) and digest(target) == checksum,
+                 'Legacy static asset collision')
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        need(target.parent.resolve().is_relative_to(root), 'Linked legacy static directory')
+        temporary = target.with_name('.asset-' + uuid.uuid4().hex)
+        try:
+            shutil.copyfile(source, temporary)
+            temporary.chmod(0o644)
+            temporary.rename(target)
+        finally:
+            if temporary.exists():
+                temporary.unlink()
+        copied += 1
+    print(f'LEGACY_ASSETS_RETAINED={copied}', flush=True)
+
+
+def probe_web_cdn(config, release_dir):
+    metadata = web_cdn_metadata(release_dir / 'webconfig')
+    if not metadata:
+        return
+    need(metadata['origin'] == config.get('web_cdn_origin'), 'CDN origin mismatch')
+    catalog = json.loads((ROOT / 'web-assets' / metadata['version'] / 'manifest.json').read_text())
+    started = time.monotonic()
+    print(f'[CDN] Checking {len(catalog["files"])} immutable public assets', flush=True)
+    for name, checksum in catalog['files'].items():
+        need(time.monotonic() - started < 180, 'CDN verification exceeded 180 seconds')
+        request = urllib.request.Request(cdn_asset_base(metadata) + '/' + name,
+                                         headers={'Origin': 'https://' + config['domain'], 'Accept-Encoding': 'gzip'})
+        with urllib.request.urlopen(request, timeout=20) as result:
+            data = result.read()
+            encoding = result.headers.get('Content-Encoding', 'identity').lower()
+            need(encoding in ('identity', 'gzip'), f'Unexpected CDN content encoding: {name}')
+            if encoding == 'gzip':
+                data = gzip.decompress(data)
+            need(result.status == 200 and hashlib.sha256(data).hexdigest() == checksum,
+                 f'CDN asset mismatch: {name}')
+            need(result.headers.get('Access-Control-Allow-Origin') == '*'
+                 and result.headers.get('Cross-Origin-Resource-Policy') == 'cross-origin', f'CDN CORS mismatch: {name}')
+    print(f'[CDN] All asset hashes and CORS passed; elapsed={time.monotonic()-started:.1f}s', flush=True)
 
 
 def inspect_bundle(archive, destination=None):
@@ -572,12 +738,16 @@ def remote_main(payload):
             # Compare deployed files with their original manifest; node_modules/logs are not package files.
             manifest = json.loads((target / 'manifest.json').read_text())
             need(manifest['release'] == release, 'Rollback manifest mismatch')
+            need(not config.get('web_cdn_origin') or 'server/src/web-assets.js' in manifest['files'],
+                 'Pre-CDN backend rollback needs a compatible asset-serving release; existing CDN URLs must remain available')
             for name, checksum in manifest['files'].items():
                 safe_name(name)
                 file = target / name
                 need(not file.is_symlink() and file.resolve().is_relative_to(target) and digest(file) == checksum, 'Rollback files changed')
+            publish_web_assets(target, config)
             smoke_candidate(config, target, env)
             activate(config, target)
+            probe_web_cdn(config, target)
             return
         need(action == 'deploy', 'Unknown remote operation')
         archive = Path(payload['archive'])
@@ -589,6 +759,11 @@ def remote_main(payload):
         target.mkdir()  # Existing versions are never overwritten, including interrupted attempts.
         inspect_bundle(archive, target)
         verify_export(target / 'webconfig')
+        need(bool(web_cdn_metadata(target / 'webconfig')) == bool(config.get('web_cdn_origin')),
+             'Deployment config/export CDN mode mismatch; rebuild package')
+        if config.get('web_cdn_origin'):
+            retain_legacy_web_assets(current_release())
+        publish_web_assets(target, config)
         # Install scripts execute as the unprivileged application user, not root.
         run(['chown', '-R', 'xora:xora', str(target)])
         print('[INSTALL] Linux production dependencies', flush=True)
@@ -599,6 +774,7 @@ def remote_main(payload):
         run(['chown', '-R', 'root:root', str(target)])
         smoke_candidate(config, target, env)
         activate(config, target)
+        probe_web_cdn(config, target)
         archive.unlink()
         archive.parent.rmdir()
 
@@ -621,7 +797,11 @@ def main(argv=None):
     if args.command == 'package':
         repo = Path(__file__).resolve().parents[2]
         output = (args.output or repo / '.hbox/deploy/packages').resolve()
-        build_package(repo, output, args.skip_build)
+        cdn_origin = ''
+        if args.config.exists():
+            config = validate_config(json.loads(args.config.read_text(encoding='utf-8-sig')))
+            cdn_origin = config.get('web_cdn_origin', '')
+        build_package(repo, output, args.skip_build, cdn_origin=cdn_origin)
         return
     config = validate_config(json.loads(args.config.read_text(encoding='utf-8-sig')))
     need(shutil.which('ssh') and shutil.which('scp'), 'OpenSSH ssh/scp are required')

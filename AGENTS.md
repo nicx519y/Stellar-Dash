@@ -34,7 +34,7 @@
 |---|---|
 | [bootloader](bootloader/AGENTS.md) | STM32H750 启动、QSPI 双槽校验与跳转 |
 | [application](application/AGENTS.md) | STM32 C/C++17 固件；输入采样、USB/RF、配置存储、屏幕和升级 |
-| [application/www](application/www/AGENTS.md) | 服务器托管 Next.js WebConfig，WebHID 产品通道及独立 Mock 预览 |
+| [application/www](application/www/AGENTS.md) | CDN 分发静态资源的 Next.js WebConfig，WebHID 产品通道及独立 Mock 预览 |
 | [RF_PHY_Hop](RF_PHY_Hop/AGENTS.md) | CH585 共同规则；[TX](RF_PHY_Hop/TX/AGENTS.md) SPI/USB 维护桥，[RX](RF_PHY_Hop/RX/AGENTS.md) XInput 与 HID telemetry |
 | [connect-monitor](connect-monitor/AGENTS.md) | Electron/React RF 诊断客户端 |
 | [server](server/AGENTS.md) | 托管网页、账户/设备认证、固件与资源服务 |
@@ -55,7 +55,7 @@
 | CH585 TX / RX 仅编译 | `make -C RF_PHY_Hop/TX` / `python tools/hbox.py build rx` |
 | CH585 TX 新 PCB ISP 离线产物准备 | `python tools/ch585_isp_prepare.py`（重建时加 `--build`）；WCHISPStudio V3.9 下载门禁与待验收项见 [新板流程](docs/new-pcb-firmware-flash.md) |
 | WebConfig 产品构建 | `python tools/hbox.py web build` |
-| WebConfig / admin 服务端部署 | `python server/tools/deploy_xora.py`；首次上线、日常更新、回滚和运维见 [部署指南](docs/webconfig-admin-deployment.md) |
+| WebConfig / admin CDN 发布 | `python server/tools/deploy_xora.py package` 后 `python server/tools/deploy_xora.py deploy --package <生成的包>`；默认流程见 [CDN 部署指南](docs/webconfig-cdn-deployment.md) |
 | 本地集成服务 | `python tools/hbox.py web local-serve --port 3001`，实验室认证边界见 [Web README](application/www/README.md) |
 | WebConfig 检查 | `application/www/`：`npm run typecheck`、按改动选择测试；产品构建 `npm run build:hosted` |
 | server 检查 | `server/`：`npm test`，先检查所选测试的环境与外部依赖 |
@@ -63,6 +63,8 @@
 | 烧录契约校验 | `python -m unittest tools.tests.test_frozen_flash_contract`（主机哈希/模拟调用，无硬件烧录） |
 
 裸 `make` 的 STM32 子工程默认安全宏为 `1`，不作为无锁开发命令。仅编译产物不能替代槽位、签名和 manifest 校验；不要将旧 Makefile 直接烧录、`flash-web-resources` 或 release 示例当作已验收日常入口。
+
+WebConfig / admin 生产发布默认使用现有服务器源站与 CDN：部署配置保留 `web_cdn_origin` 和 `gallery_cdn_origin`，由部署入口构建版本化网页资源、保留旧资源并在线校验 CDN。HTML、路由数据、API、登录与 service worker 保持同源实时访问；不要直接复制本机构建覆盖线上目录，也不要清理仍被旧页面引用的 CDN 版本。首次服务器初始化与账户运维见 [服务端指南](docs/webconfig-admin-deployment.md)。
 
 用户已要求 STM32 普通烧录时，使用 `python tools/hbox.py flash app A --build`（或 B），或先完成上述本地完整构建再运行 `python tools/hbox.py web local-flash-stm32 --simple-execute`；均必须通过产物与目标检查。这里列出命令不构成自动烧录要求。
 

@@ -54,14 +54,16 @@ function inlineScriptHashes(html) {
     return [...new Set(hashes)];
 }
 
-function htmlSecurityPolicy(filePath) {
+function htmlSecurityPolicy(filePath, galleryCdnOrigin, webCdnOrigin) {
     const html = fs.readFileSync(filePath, 'utf8');
     return buildContentSecurityPolicy({
-        scriptHashes: inlineScriptHashes(html)
+        scriptHashes: inlineScriptHashes(html),
+        galleryCdnOrigin,
+        webCdnOrigin,
     });
 }
 
-function setHostedFileHeaders(response, filePath) {
+function setHostedFileHeaders(response, filePath, galleryCdnOrigin, webCdnOrigin) {
     const normalized = filePath.replaceAll('\\', '/');
     if (normalized.endsWith('.html')) {
         response.set('Cache-Control', 'no-cache, no-store');
@@ -71,8 +73,13 @@ function setHostedFileHeaders(response, filePath) {
          */
         response.set(
             'Content-Security-Policy',
-            htmlSecurityPolicy(filePath)
+            htmlSecurityPolicy(filePath, galleryCdnOrigin, webCdnOrigin)
         );
+        if (webCdnOrigin) {
+            // The browser negotiates HTTP/3/HTTP/2; never spoof Alt-Svc for the
+            // page origin or introduce an application-level protocol retry.
+            response.set('Link', `<${webCdnOrigin}>; rel=preconnect; crossorigin, <${webCdnOrigin}>; rel=dns-prefetch`);
+        }
     } else if (normalized.endsWith('.txt')) {
         // Next's exported route payloads carry a build ID but have stable URLs.
         // A cached payload from an older build forces a full document navigation.
@@ -93,6 +100,14 @@ function installHostedWebConfig(app, options) {
     }
 
     const staticDir = path.resolve(options.staticDir);
+    const cdnMetadata = path.join(staticDir, 'cdn-assets.json');
+    if (fs.existsSync(cdnMetadata)) {
+        const metadata = JSON.parse(fs.readFileSync(cdnMetadata, 'utf8'));
+        if (metadata.schema !== 1 || !/^[a-f0-9]{32}$/.test(metadata.version)
+            || metadata.origin !== options.webCdnOrigin) {
+            throw new Error('Hosted CDN build does not match WEB_CONFIG_CDN_ORIGIN');
+        }
+    }
     const profileSlugs = Array.isArray(options.profileSlugs)
         ? [...new Set(options.profileSlugs)]
         : [];
@@ -133,9 +148,17 @@ function installHostedWebConfig(app, options) {
         index: ['index.html'],
         redirect: true,
         setHeaders(response, filePath) {
-            setHostedFileHeaders(response, filePath);
+            setHostedFileHeaders(response, filePath, options.galleryCdnOrigin, options.webCdnOrigin);
         }
     }));
+    if (options.legacyAssetDir) {
+        app.use('/_next/static', express.static(path.join(options.legacyAssetDir, 'legacy', '_next', 'static'), {
+            dotfiles: 'deny', index: false, redirect: false, fallthrough: true,
+            setHeaders(response) {
+                response.set('Cache-Control', 'public, max-age=31536000, immutable');
+            },
+        }));
+    }
 
     /*
      * The normal export contains one directory per route. Keep a narrow SPA
@@ -150,7 +173,7 @@ function installHostedWebConfig(app, options) {
         `^(?:/${settingsRoute}${profileRoute})/?$`
     );
     app.get(routePattern, (request, response, next) => {
-        setHostedFileHeaders(response, indexPath);
+        setHostedFileHeaders(response, indexPath, options.galleryCdnOrigin, options.webCdnOrigin);
         response.sendFile(indexPath, error => {
             if (error) {
                 next(error);

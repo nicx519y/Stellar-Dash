@@ -2,7 +2,7 @@
 
 继承 [仓库规则](../../AGENTS.md) 与 [application 规则](../AGENTS.md)。本目录是 Next.js/React WebConfig；启动和部署细节按需查阅 [README](README.md)。
 
-WebConfig 与 admin 的双域名上线、Hosted 打包、更新和回滚统一按 [服务端部署指南](../../docs/webconfig-admin-deployment.md) 执行。
+WebConfig 与 admin 生产发布默认按 [CDN 部署指南](../../docs/webconfig-cdn-deployment.md) 执行；服务器初始化与账户运维见 [服务端部署指南](../../docs/webconfig-admin-deployment.md)。
 
 ## 产品边界
 
@@ -12,6 +12,8 @@ WebConfig 与 admin 的双域名上线、Hosted 打包、更新和回滚统一�
 - 页面中任何面向用户的文案（含中英文、标题、选项、提示、错误信息和无障碍标签）不出现 STM32、CH585 等具体芯片型号，统一使用“主控 / Main controller”“TX”“RX”等功能代称。外部错误或兼容声明中的型号在展示层转换；协议字段、命令、设备匹配值、签名数据及原始诊断导出等技术标识保持兼容，不为文案更名修改原值。
 
 - 产品为服务器托管静态站点，通过 CH585 Maintenance HID / WebHID 与 STM32 通信。Hosted 只用 WebHID，不允许自动回退到 Mock、HTTP 或其他设备通道。
+- 生产 JS/CSS、字体、公开界面图片使用每次构建独立的 CDN 版本路径。发布使用 `python server/tools/deploy_xora.py` 的 `package` / `deploy` 子命令（在仓库根目录执行），不要把普通 `npm run build:hosted` 产物直接覆盖生产。新增 public 图片/字体通过 `lib/public-asset.ts` 生成地址；CSS 字体采用相对 URL，由构建器生成 CDN 资源引用。API、路由、HTML、service worker 与设备通信保持原站点来源；Mock / 开发构建不启用 CDN。
+- CDN HTTP/3（QUIC）与 HTTP/2 由浏览器自动协商，页面配合匿名预连接，不通过应用层重试强制切换协议。保留设备包和静态资源摘要校验；Gzip/Brotli 按解压后的原始字节校验，不能为了 CDN 内容优化放宽 CSP 或取消完整性检查。
 - Mock 是独立开发变体。保持 `build:hosted` / `build:mock` 的环境与产物隔离，不将模拟设备打入产品。
 - `makefsdata.js` 仅为旧 A/B artifact 兼容生成资源；日常网页构建不把网站写入 STM32，不恢复旧 httpd runtime。
 - WebHID 设备选择需要用户手势。设备访问、会话租约、队列和错误处理使用 [device-transport](lib/device-transport/) 的现有抽象；组件不要自行打开另一条 HID 通道。

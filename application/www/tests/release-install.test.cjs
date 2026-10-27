@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { releaseBlockReason, installRelease, isLegacyPhysicalConfirmationRejection } = require('../lib/device-transport/release-install-client.ts');
+const { releaseBlockReason, downloadRelease, installRelease, isLegacyPhysicalConfirmationRejection } = require('../lib/device-transport/release-install-client.ts');
 const { DeviceTransportError } = require('../lib/device-transport/types.ts');
 global.localStorage = { values:new Map(), getItem(k){return this.values.get(k)??null;}, setItem(k,v){this.values.set(k,v);}, removeItem(k){this.values.delete(k);} };
 let transaction='';
@@ -10,6 +10,23 @@ const inventory = () => ({ protocol:2, deviceModel:'STM32H750_HBOX',hardwareVers
 const release = version => ({ id:'target',installable:true,bundleSha256:'hash',manifest:{schemaVersion:2,version,
   deviceModel:'STM32H750_HBOX',hardwareVersion:'2.0.0',bootSecurityMode:'unlocked-development',requiresManualLifecycleProvisioning:false,
   install:{protocol:2,order:'tx-then-stm32',configRead:{min:34,max:34},configWrite:34,stm32Maintenance:{min:2,max:2},txMaintenance:{min:2,max:2}}} });
+test('CDN bytes and exposed digest remain mandatory before extraction or device writes', async t => {
+  const previous = process.env.NEXT_PUBLIC_WEB_ASSET_BASE;
+  process.env.NEXT_PUBLIC_WEB_ASSET_BASE = 'https://assets.example.com/cdn/web/' + 'b'.repeat(32);
+  t.after(() => { if (previous === undefined) delete process.env.NEXT_PUBLIC_WEB_ASSET_BASE; else process.env.NEXT_PUBLIC_WEB_ASSET_BASE = previous; });
+  const bytes = new Uint8Array([1, 2, 3]);
+  const hash = require('node:crypto').createHash('sha256').update(bytes).digest('hex');
+  const selected = { ...release('3.0.0'), bundleSha256: hash,
+    downloadUrl: `https://assets.example.com/cdn/firmware/target/${hash}/release.zip` };
+  const client = { authorizedFetch: async path => {
+    assert.equal(path, '/api/firmware-releases/target');
+    return new Response(JSON.stringify({ success: true, data: selected }));
+  }, request: () => { throw new Error('must not touch a device'); } };
+  for (const [body, headers] of [[new Uint8Array([9]), { 'X-Content-SHA256': hash }], [bytes, {}]]) {
+    t.mock.method(global, 'fetch', async () => new Response(body, { headers }));
+    await assert.rejects(downloadRelease(client, 'target', inventory()), /Bundle digest mismatch/);
+  }
+});
 test('old firmware physical-confirmation rejection is distinguished from current installation failures', () => {
   const error = (command, errNo) => new DeviceTransportError('protocol', 'Device rejected command', { command, errNo });
   assert.equal(isLegacyPhysicalConfirmationRejection(error('begin_release_install', 423)), true);

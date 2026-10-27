@@ -8,6 +8,11 @@ const mockTransportEnabled = process.env.NEXT_PUBLIC_DEVICE_TRANSPORT === 'mock'
 const offlinePreviewEnabled = process.env.NEXT_PUBLIC_OFFLINE_PREVIEW === 'true';
 const isMockBuild = requestedMockBuild && mockTransportEnabled && offlinePreviewEnabled;
 const configuredOutputDir = process.env.HBOX_WEB_OUTPUT_DIR;
+const webAssetBase = process.env.NEXT_PUBLIC_WEB_ASSET_BASE || '';
+if (webAssetBase && (!/^https:\/\/[a-z0-9.-]+\/cdn\/web\/[a-f0-9]{32}$/.test(webAssetBase)
+    || requestedMockBuild || isDevelopment)) {
+    throw new Error('Versioned HTTPS CDN assets are supported only in Hosted production builds.');
+}
 
 if (requestedMockBuild !== mockTransportEnabled ||
     requestedMockBuild !== offlinePreviewEnabled) {
@@ -18,6 +23,9 @@ if (requestedMockBuild !== mockTransportEnabled ||
 }
 
 const nextConfig: NextConfig = {
+    assetPrefix: webAssetBase || undefined,
+    crossOrigin: 'anonymous',
+    generateBuildId: webAssetBase ? async () => webAssetBase.split('/').pop()! : undefined,
     output: "export",   // 指定输出模式，export 表示导出静态文件，export 模式下，next 会生成一个 dist 目录，里面包含所有静态文件，使用这个模式的时候 要暂时删除 app/api 
     // Keep the normal Next.js development cache separate from deployable
     // exports. Mock exports must never be consumed by makefsdata.js.
@@ -47,6 +55,7 @@ const nextConfig: NextConfig = {
             config.cache.version = [
                 config.cache.version,
                 `hbox-build-variant:${isMockBuild ? 'mock' : 'hosted'}`,
+                `xora-web-asset-base:${webAssetBase}`,
             ].filter(Boolean).join('|');
         }
         config.resolve.alias = {

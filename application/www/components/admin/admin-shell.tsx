@@ -1,5 +1,7 @@
 'use client';
 
+import { publicAssetUrl } from '@/lib/public-asset';
+
 import type { ReactNode } from 'react';
 import { Box, Flex, HStack, Text, Stack, Button, Image, Separator } from '@chakra-ui/react';
 import { usePathname } from 'next/navigation';
@@ -27,7 +29,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
       <Flex {...contentWidth} minH="72px" py="3" gap={{ base: 3, lg: 5 }}
         direction={{ base: 'column', lg: 'row' }} align={{ base: 'stretch', lg: 'center' }}>
       <HStack gap="3" flexShrink={0}>
-        <Image src="/images/xora-mono-slate.svg" alt="XORA 星溯" width="110px" height="30px" objectFit="contain" flexShrink={0} />
+        <Image src={publicAssetUrl('/images/xora-mono-slate.svg')} alt="XORA 星溯" width="110px" height="30px" objectFit="contain" flexShrink={0} />
         <Separator orientation="vertical" height="5" borderColor="border" flexShrink={0} aria-hidden="true" />
         <Text fontSize="xs" color="fg.muted" whiteSpace="nowrap">{zh ? '管理后台' : 'Administration'}</Text>
       </HStack>
