@@ -67,7 +67,7 @@ SPI 接收 DMA、环形队列和既有消费者容量未缩减。旧 Host 枚举
 
 [链接断言](../RF_PHY_Hop/TX/USB/usb_stack_budget.ld) 与 [ELF 检查](../tools/check_ch585_usb_memory.py) 要求至少 4096 字节栈空间；ELF 检查计入 `.noinit.xora_fault` 等所有 RAM 分配段，并验证 Host、Device、SPI DMA 缓冲地址和对齐。运行时实际栈水位仍待硬件测量，链接余量不能替代它。
 
-本次最终 ELF 的资源结果（当前工作区，无锁编译目标）：
+首次实现的普通无锁编译 ELF 资源结果（正式构建修复见下文）：
 
 | 项目 | 结果 |
 |---|---:|
@@ -81,6 +81,16 @@ SPI 接收 DMA、环形队列和既有消费者容量未缩减。旧 Host 枚举
 上述 STM32 数值属于 `make HBOX_SECURE_BOOT_REQUIRED=0` 的编译产物，不是已签名 A 槽发布包。实机更新前仍需既有入口的正式构建、manifest 与目标门禁。
 
 STM32 缓存和本地故障计数位于 `.DMA_Section` 的 D2 SRAM。NOLOAD 区通过启动初始化函数显式清零；不会依赖 SRAM 上电值。诊断 API 与该初始化函数同段保留，避免无 UI 调用时被链接裁剪。查询只按需进行，不增加游戏期间自动轮询或 Flash 写入。
+
+## 正式 A 槽构建的内存修复
+
+首次普通编译通过，但正式签名 A 槽参数下 AXI RAM 超出 480 字节，失败发生在链接阶段，尚未烧录。普通编译结果不能替代正式产物验证。
+
+将 `usb_board_link.cpp` 中 CPU 专用的 `s_hsLink`（16440 字节，含完整 WebConfig TX/RX 队列）放入既有 D3 NOLOAD 区 `.BDMA_Section.usb_link_state`。队列容量不变；实际 SPI DMA 与格式化 staging 仍在 D2；初始化函数在 `__libc_init_array` 中明确清零整个对象。没有修改链接地址布局、烧录脚本或冻结哈希。
+
+通过与 `flash app A --build` 相同的构建子入口 `python tools/formal_application_build.py --slot A`，生成并核验正式签名、`unlocked-development` A 槽产物，约 59 秒完成；manifest 的 `requiresManualLifecycleProvisioning=false`。本步骤不执行硬件写入。
+
+修复后的正式 ELF：AXI 余量 **15936 字节**，D2 余量 **7776 字节**，D3 余量 **45056 字节**。`s_hsLink` 位于 `0x380007C0`，结束于 `0x380047F8`，在既有 D3 `0x3800F800` 上界以内；启动初始化注册及反汇编中的完整清零已核对。9 项 WebHID 窗口 / CRC / 代次 / DMA / NSS / 状态测试通过。实际板上启动及 WebConfig 性能仍待烧录验收。
 
 ## 只读诊断协议 v1
 

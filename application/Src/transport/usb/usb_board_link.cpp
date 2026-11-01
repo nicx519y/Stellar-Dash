@@ -73,7 +73,10 @@ bool consumeUsbMonitorEvent(uint8_t command,const uint8_t *payload,uint8_t lengt
     return true;
 }
 
-static whf_link_t s_hsLink;
+// CPU-only WebConfig queues. Keep their full capacity in spare SRAM4 (D3);
+// actual SPI DMA still uses the existing D2 staging buffers. The linker already
+// reserves the boot profile/mailbox above this NOLOAD region.
+__attribute__((section(".BDMA_Section.usb_link_state"), aligned(32))) static whf_link_t s_hsLink;
 // CPU formatting buffer; port DMA uses its separate cache-managed copy. Each
 // transmitted byte is initialized by whf_prepare, so NOLOAD D2 is safe here.
 __attribute__((section(".DMA_Section"), aligned(32))) static uint8_t s_hsBlock[WHF_BLOCK_BYTES];
@@ -413,8 +416,9 @@ __attribute__((section(".DMA_Section"), aligned(32))) uint32_t usbDiagLocalFault
 // Keep the on-demand API with its live initializer on bare-metal toolchains
 // without SHF_GNU_RETAIN. This does not schedule any diagnostic polling.
 #define USB_DIAG_API __attribute__((section(".text.xora_usb_diagnostics"), noinline))
-// D2 is NOLOAD, so the regular BSS clear cannot initialize these objects.
+// D2/D3 are NOLOAD, so the regular BSS clear cannot initialize these objects.
 USB_DIAG_API __attribute__((constructor)) void initializeUsbDiagnostics() {
+    memset(&s_hsLink, 0, sizeof(s_hsLink));
     usbDiagCache = {};
     usbDiagCache.stale = true;
     memset(usbDiagLocalFault, 0, sizeof(usbDiagLocalFault));
