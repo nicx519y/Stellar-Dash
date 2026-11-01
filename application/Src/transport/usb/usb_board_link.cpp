@@ -406,8 +406,23 @@ bool UsbBoardLink::send(uint8_t command,
                       payloadLength);
 }
 
+namespace {
+// D2 SRAM, deliberately outside the nearly full AXI allocation.
+__attribute__((section(".DMA_Section"), aligned(32))) UsbDiagnosticCache usbDiagCache;
+__attribute__((section(".DMA_Section"), aligned(32))) uint32_t usbDiagLocalFault[4];
+// Keep the on-demand API with its live initializer on bare-metal toolchains
+// without SHF_GNU_RETAIN. This does not schedule any diagnostic polling.
+#define USB_DIAG_API __attribute__((section(".text.xora_usb_diagnostics"), noinline))
+// D2 is NOLOAD, so the regular BSS clear cannot initialize these objects.
+USB_DIAG_API __attribute__((constructor)) void initializeUsbDiagnostics() {
+    usbDiagCache = {};
+    usbDiagCache.stale = true;
+    memset(usbDiagLocalFault, 0, sizeof(usbDiagLocalFault));
+}
+}
 bool UsbBoardLink::selectRole(usb_board_role_t role, uint32_t timeoutMs)
 {
+    usbDiagCache.stale=true;
     usb_board_role_select_v1_t request = {static_cast<uint8_t>(role)};
     usb_board_role_selected_v1_t response = {};
     uint8_t responseLength = 0u;
@@ -559,6 +574,23 @@ bool UsbBoardLink::getCapabilities()
         (void)grantInitialReceiveCredits();
     }
     return capsValid;
+}
+
+USB_DIAG_API bool UsbBoardLink::queryUsbDiagnostics(uint8_t page, uint8_t index, UsbDiagnosticCache &result) {
+    uint8_t request[3]={XORA_USB_DIAG_VERSION,page,index};
+    uint8_t response[XORA_USB_DIAG_BYTES]={};
+    uint8_t length=0;
+    bool ok=sendControl(USB_BOARD_CONTROL_GET_USB_DIAGNOSTICS,request,sizeof(request),
+                        response,sizeof(response),&length);
+    ok=usbDiagCache.update(ok,response,length,page,index,HAL_GetTick());
+    result=usbDiagCache;
+    return ok;
+}
+USB_DIAG_API void UsbBoardLink::getUsbLocalFaultDiagnostics(uint32_t result[4]) const {
+    memcpy(result,usbDiagLocalFault,sizeof(usbDiagLocalFault));
+}
+USB_DIAG_API void UsbBoardLink::getCachedUsbDiagnostics(UsbDiagnosticCache &result) const {
+    result=usbDiagCache.snapshot(HAL_GetTick());
 }
 
 bool UsbBoardLink::getUsbLinkState(usb_board_control_link_state_v1_t &state)
@@ -836,6 +868,7 @@ void UsbBoardLink::flushReceiveCredits()
 
 bool UsbBoardLink::setProfile(usb_board_profile_t profile)
 {
+    usbDiagCache.stale=true;
     usb_board_set_profile_v1_t request = {static_cast<uint8_t>(profile)};
     usb_board_profile_set_v1_t response = {};
     uint8_t responseLength = 0u;
@@ -1301,6 +1334,8 @@ void UsbBoardLink::handleEvent(uint8_t command,
         (length == sizeof(usbState))) {
         usb_board_usb_state_v1_t updated = {};
         memcpy(&updated, payload, sizeof(updated));
+        if(updated.host_attached!=usbState.host_attached || updated.profile!=usbState.profile)
+            usbDiagCache.stale=true;
         usbSubsystemEvidence = true;
         if (updated.device_mounted == 0u && usbState.device_mounted != 0u) {
             requestWebConfigTransportReset();
@@ -1370,6 +1405,9 @@ void UsbBoardLink::handleEvent(uint8_t command,
         if ((channelIndex == 0u) ||
             (channelIndex >= sizeof(receiveCredits)) ||
             (receiveCredits[channelIndex] == 0u)) {
+            usbDiagLocalFault[0]=2u; // STM32 receive-credit validation, not CH585 USB Host
+            usbDiagLocalFault[1]=HAL_GetTick();
+            ++usbDiagLocalFault[2];usbDiagLocalFault[3]=channelIndex;
             usbState.last_fault = USB_BOARD_STATUS_QUEUE_FULL;
             return;
         }
@@ -1473,6 +1511,7 @@ void UsbBoardLink::process()
 
 void UsbBoardLink::shutdown()
 {
+    usbDiagCache.stale=true;
     s_releaseFaultReported = false;
     usbMon=UsbSourceMonitor{};
     s_hsReady = false; whf_init(&s_hsLink, 0u);

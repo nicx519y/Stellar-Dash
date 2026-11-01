@@ -1,3 +1,4 @@
+#include "usb_diagnostics_tx.h"
 #include "usb_board_link.h"
 #include "fault_log_api.h"
 #include "game_link_log.h"
@@ -86,6 +87,7 @@ static bool queue_event(uint8_t command, const void *payload, uint8_t length)
 /* Keep the cold error formatter out of the SRAM input dispatcher. */
 static __attribute__((noinline)) bool queue_fault(uint8_t fault, uint8_t command)
 {
+    if(command) usb_diag_fault_record(1,fault,command);
     uint8_t payload[14];
     uint8_t length = 2u;
     payload[0] = fault;
@@ -104,7 +106,9 @@ static __attribute__((noinline)) bool queue_fault(uint8_t fault, uint8_t command
     if(s_role==USB_BOARD_ROLE_USB) XoraLog_GameFault(GL_MODE_USB,GL_BOARD_FAULT,fault);
     s_last_fault = fault;
     usb_high_rate_note_board_link_fault();
-    return queue_event(USB_BOARD_EVT_FAULT, payload, length);
+    bool sent=queue_event(USB_BOARD_EVT_FAULT, payload, length);
+    if(sent) usb_diag_fault_ack(1);
+    return sent;
 }
 
 static void build_state(usb_board_usb_state_v1_t *state)

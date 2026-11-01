@@ -1,3 +1,4 @@
+#include "usb_diagnostics_tx.h"
 #include "usb_management_control.h"
 
 #include <string.h>
@@ -94,6 +95,12 @@ bool usb_management_control_handle(const uint8_t *request_bytes,
     {
         switch((usb_board_control_opcode_t)request.header.opcode)
         {
+        case USB_BOARD_CONTROL_GET_USB_DIAGNOSTICS:
+            if(request.header.data_length!=3u || request.data[0]!=XORA_USB_DIAG_VERSION)
+                status=USB_BOARD_STATUS_BAD_LENGTH;
+            else if(!usb_diagnostics_query(request.data[1],request.data[2],response.data,&response.header.data_length))
+                status=USB_BOARD_STATUS_UNSUPPORTED;
+            break;
         case USB_BOARD_CONTROL_DIAGNOSTICS:
             if(request.header.data_length > 1u || (request.header.data_length && !XORA_POLICY_WIRE_VALID(request.data[0]))) status=USB_BOARD_STATUS_BAD_LENGTH;
             else {

@@ -6,6 +6,7 @@
 #include "ch585_role_bootstrap.hpp"
 #include "usb_board_link_protocol.h"
 #include "release_install_protocol.h"
+#include "usb_diagnostic_cache.hpp"
 
 class UsbBoardLink
 {
@@ -27,6 +28,9 @@ public:
     bool readTxImage(uint32_t offset, uint8_t* bytes, uint16_t length);
     bool setProfile(usb_board_profile_t profile);
     bool getUsbLinkState(usb_board_control_link_state_v1_t &state);
+    bool queryUsbDiagnostics(uint8_t page, uint8_t index, UsbDiagnosticCache &result);
+    void getCachedUsbDiagnostics(UsbDiagnosticCache &result) const;
+    void getUsbLocalFaultDiagnostics(uint32_t result[4]) const;
     bool enableFastInputDataPlane();
     bool enableWebHidDataPlane();
     bool restoreCompatibleDataPlane();

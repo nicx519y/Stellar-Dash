@@ -1,3 +1,4 @@
+#include "usb_diagnostics_tx.h"
 #include "usb_webhid_memory.h"
 #include "usb_board_link.h"
 #include "usb_webhid_fast.h"
@@ -55,6 +56,7 @@ static void record_overflow(uint8_t cause, uint32_t produced, uint32_t consumed)
         s_input_fault_detail[1]=produced;
         s_input_fault_detail[2]=consumed;
     }
+    usb_diag_fault_record(0,USB_BOARD_STATUS_QUEUE_FULL,cause);
     s_port_fault = USB_BOARD_STATUS_QUEUE_FULL;
 }
 
@@ -608,6 +610,7 @@ bool usb_board_link_port_take_fault(uint8_t *fault)
         port_unlock();
         return false;
     }
+    usb_diag_fault_ack(0);
     *fault = s_port_fault;
     s_port_fault = USB_BOARD_STATUS_OK;
     port_unlock();

@@ -185,6 +185,7 @@ typedef enum
     /* One byte 0/1. Intentional producer pause, not USB suspend/disconnect. */
     USB_BOARD_CONTROL_INPUT_EXPECTED = 0x0Du,
     USB_BOARD_CONTROL_DIAGNOSTICS = 0x0Eu,
+    USB_BOARD_CONTROL_GET_USB_DIAGNOSTICS = 0x0Fu,
     USB_BOARD_CONTROL_HS_CAPS = 0x30u,
     USB_BOARD_CONTROL_HS_PREPARE = 0x31u,
     USB_BOARD_CONTROL_HS_COMMIT = 0x32u,
