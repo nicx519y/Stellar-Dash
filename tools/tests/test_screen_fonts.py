@@ -28,12 +28,13 @@ PRELUDE = r'''
 #include <string>
 #include <vector>
 #include "screen_control/spi_screen_ui_common.hpp"
+#include "screen_control/spi_screen_status_bar.hpp"
 #include "screen_control/spi_screen_detail_render_helpers.hpp"
 #include "screen_control/spi_screen_timed_popup.hpp"
 #include "screen_font.h"
 #include "enums.hpp"
 uint32_t pixels[172][320]{};
-struct Text {unsigned x,y,font;std::string value;};
+struct Text {unsigned x,y,font;std::string value;uint32_t fg,bg;};
 std::vector<Text> texts;
 void ST7789_FillRect(ST7789_Handle*,uint16_t x,uint16_t y,uint16_t w,uint16_t h,uint32_t c) {
     for(unsigned yy=y;yy<unsigned(y)+h && yy<172;++yy)
@@ -109,20 +110,22 @@ class ScreenFontTests(unittest.TestCase):
         for sig in ("static uint16_t st7789_char_cell_w(", "static uint16_t st7789_char_cell_h(",
                     "void ST7789_DrawChar(", "void ST7789_DrawString("):
             code += function(driver, sig).replace("void ST7789_DrawString(", "void NativeDrawString(")
-        code += function((UI / "spi_screen_manager.cpp").read_text(encoding="utf-8"), "static void render_platform_badge(")
         code += function((UI / "spi_screen_main_list.cpp").read_text(encoding="utf-8"), "const char* ScreenMain_InputModeAbbrev(")
+        for name in ("USB", "wireless"):
+            raw_icon = (ROOT / f"application/assets/sysicons/{name}_dark_28x28.rgb565").read_bytes()
+            code += f'\nstatic const uint8_t icon_{name}[]={{' + ','.join(map(str, raw_icon)) + '};\n'
         code += '\nstatic const char* cjk[]={' + ','.join(json.dumps(chr(c)) for c in chinese.characters()) + '};\n'
         code += r'''
 void ST7789_DrawString(ST7789_Handle* l,uint16_t x,uint16_t y,const char* s,uint32_t fg,uint32_t bg,uint8_t font) {
     s=ScreenText_Translate(s);
     assert(x+ScreenText_Width(s,font)<=320 && y+ScreenFont_CellH(font)<=172);
-    texts.push_back({x,y,font,s});NativeDrawString(l,x,y,s,fg,bg,font);
+    texts.push_back({x,y,font,s,fg,bg});NativeDrawString(l,x,y,s,fg,bg,font);
 }
 int main(int argc,char** argv) {
     ST7789_Handle lcd{};const char* dir=argc>1?argv[1]:nullptr;
     // Dump every rendered glyph for independent comparison with upstream BDF rows.
     FILE* raw=fopen(argv[2],"wb");assert(raw);
-    for(unsigned font:{1,3,2,4,5}) for(unsigned c=32;c<=126;++c) {
+    for(unsigned font:{1,3,2,4,5,6}) for(unsigned c=32;c<=126;++c) {
         memset(pixels,0x55,sizeof(pixels));ST7789_DrawChar(&lcd,0,0,c,0xffffff,0,font);
         for(unsigned y=0;y<ScreenFont_CellH(font);++y)
             for(unsigned x=0;x<ScreenFont_CellW(font);++x) {
@@ -228,19 +231,60 @@ int main(int argc,char** argv) {
         reset();const auto layout=ScreenUI_StatusBarLayout();
         ScreenUI_DrawStringCenteredInBox(&lcd,0,layout.profileY,40,14,"P16",style.accent,style.bg,SPI_SCREEN_PROFILE_TEXT_SCALE);
         assert(texts[0].x==8 && texts[0].y==16 && texts[0].font==SCREEN_FONT_BADGE_BOLD);
-        render_platform_badge(&lcd,ScreenMain_InputModeAbbrev(INPUT_MODE_XINPUT),style.text,style.bg);
+        ScreenUI_DrawPlatformBadge(&lcd,ScreenMain_InputModeAbbrev(INPUT_MODE_XINPUT),style.text,style.bg);
         ScreenUI_DrawStringCenteredInBox(&lcd,0,layout.connectionY,40,32,"USB",style.text,style.bg,2);
+        ScreenUI_DrawStatusMeta(&lcd,"FST",8000,style);
         ScreenUI_DrawStringCenteredInBox(&lcd,280,0,40,57,"Cancel",style.text,style.bg,1);
-        assert(texts.size()==4 && texts.back().value==ScreenText_Translate("Cancel"));
+        assert(texts.size()==6 && texts.back().value==ScreenText_Translate("Cancel"));
         for(const auto& t:texts) assert(t.x+ScreenText_Width(t.value.c_str(),t.font)<=(t.x<40?40:320));
         save(dir,light?"light-status":"dark-status");
+        const char* performanceLabels[]={"FST","BAL","STB","CUS"};
+        const uint16_t statusRates[]={8000,4000,1000,0};
+        for(unsigned wireless=0;wireless<2;++wireless) for(unsigned p=0;p<4;++p) {
+            reset();
+            const char* menu[]={"Connection","Buttons Performance","Report Rate","Profiles"};
+            ScreenDetailRender_List(&lcd,"Main",menu,4,1,1,style,SPI_SCREEN_MENU_ITEM_H,false,0,0,0,nullptr,false);
+            ScreenUI_DrawStringCenteredInBox(&lcd,0,layout.profileY,40,14,"P16",style.accent,style.bg,SPI_SCREEN_PROFILE_TEXT_SCALE);
+            ScreenUI_DrawPlatformBadge(&lcd,p==2?"NS":"PC",style.icon,style.bg);
+            ScreenUI_DrawConnectionIcon(&lcd,wireless?ScreenConnectionIcon::Wireless:ScreenConnectionIcon::Usb,style);
+            ScreenUI_DrawStatusMeta(&lcd,performanceLabels[p],statusRates[p],style);
+            ST7789_FillRect(&lcd,6,layout.batteryY,26,SPI_SCREEN_BATTERY_BODY_H,style.icon);
+            ST7789_FillRect(&lcd,7,layout.batteryY+1,24,SPI_SCREEN_BATTERY_BODY_H-2,style.bg);
+            ST7789_FillRect(&lcd,32,layout.batteryY+4,2,6,style.icon);
+            ST7789_FillRect(&lcd,8,layout.batteryY+2,16,SPI_SCREEN_BATTERY_BODY_H-4,style.icon);
+            assert(texts[texts.size()-2].value==performanceLabels[p]);
+            for(unsigned i=texts.size()-2;i<texts.size();++i) {
+                const auto& t=texts[i];
+                assert(t.font==SCREEN_FONT_STATUS_BOLD && t.x+ScreenText_Width(t.value.c_str(),t.font)<=34);
+            }
+            assert(texts[texts.size()-2].fg == style.icon);
+            assert(texts.back().fg == style.bg && texts.back().bg == style.icon);
+            const uint16_t platformTop=layout.platformY+(SPI_SCREEN_STATUS_ICON_H-SPI_SCREEN_BATTERY_BODY_H)/2u;
+            assert(layout.performanceY-(layout.profileY+14u)==platformTop-(layout.performanceY+SPI_SCREEN_STATUS_PERFORMANCE_H));
+            for(unsigned slot=0;slot<4;++slot) {
+                const auto color=pixels[layout.performanceY+12u][6u+slot*8u];
+                assert(color==(slot==p?style.accent:style.icon));
+            }
+            for(unsigned y=layout.reportRateY;y<layout.reportRateY+8u;++y)
+                for(unsigned x=6;x<34;++x)
+                    assert(pixels[y][x]==style.icon || pixels[y][x]==style.bg);
+            if(statusRates[p]) {
+                bool topInk=false,bottomInk=false;
+                for(unsigned x=6;x<34;++x) {
+                    topInk |= pixels[layout.reportRateY][x]==style.bg;
+                    bottomInk |= pixels[layout.reportRateY+7u][x]==style.bg;
+                }
+                assert(topInk && bottomInk); // No blank padding above/below the rate.
+            }
+            save(dir,(std::string(light?"light-status-":"dark-status-")+(wireless?"rf-":"usb-")+performanceLabels[p]).c_str());
+        }
         const InputMode modes[]={INPUT_MODE_XINPUT,INPUT_MODE_XBOX,INPUT_MODE_PS4,INPUT_MODE_PS5,INPUT_MODE_SWITCH};
         const char* expectedLabels[]={"PC","XB","PS","PS","NS"};
         for(unsigned i=0;i<5;++i) {
             reset();
             const char* label=ScreenMain_InputModeAbbrev(modes[i]);
             assert(strcmp(label,expectedLabels[i])==0);
-            render_platform_badge(&lcd,label,style.text,style.bg);
+            ScreenUI_DrawPlatformBadge(&lcd,label,style.text,style.bg);
             assert(texts.size()==1 && texts[0].x==12 && texts[0].y==79 && texts[0].font==SCREEN_FONT_BADGE_BOLD);
             unsigned ink=0;
             for(unsigned y=0;y<172;++y) for(unsigned x=0;x<320;++x) {
@@ -282,7 +326,7 @@ void ST7789_DrawString(ST7789_Handle*,uint16_t,uint16_t,const char*,uint32_t,uin
                         f"-I{temp}", f"-I{ROOT / 'application/Inc/display'}",
                         f"-I{ROOT / 'application/Inc/display/drivers/st7789'}", str(cpp),
                         f"-I{ROOT / 'application/Inc/support'}",
-                        *[str(UI / f) for f in ("spi_screen_ui_common.cpp", "spi_screen_theme.cpp", "spi_screen_detail_render_helpers.cpp", "spi_screen_timed_popup.cpp")],
+                        *[str(UI / f) for f in ("spi_screen_ui_common.cpp", "spi_screen_theme.cpp", "spi_screen_status_bar.cpp", "spi_screen_detail_render_helpers.cpp", "spi_screen_timed_popup.cpp")],
                         str(DRIVER / "screen_text.c"),
                         "-o", str(exe)], check=True, timeout=120)
             preview = Path(os.environ.get("XORA_SCREEN_PREVIEW_DIR", temp / "preview"))
@@ -300,6 +344,10 @@ void ST7789_DrawString(ST7789_Handle*,uint16_t,uint16_t,const char*,uint32_t,uin
                     merged = row | (data[y-1] if y else 0)
                     bold = merged | (merged >> 1)
                     expected.extend(bool(bold & (0x80 >> x)) for x in range(8))
+            for data in read_strike(SOURCE / "ter-u12n.bdf", 6, 12).values():
+                for row in data[2:10]:
+                    bold = (row | (row >> 1)) & 0xfc
+                    expected.extend(bool(bold & (0x80 >> x)) for x in range(7))
             for width, height, weight in chinese.STRIKES:
                 font = chinese.load_font(height, weight)
                 for c in chinese.characters():
@@ -308,7 +356,7 @@ void ST7789_DrawString(ST7789_Handle*,uint16_t,uint16_t,const char*,uint32_t,uin
                         for x in range(width):
                             expected.append(bool(data[y*((width+7)//8)+x//8] & (0x80>>(x%8))))
             self.assertEqual(raw.read_bytes(), bytes(expected))
-            print(f"PASS: 380 native, 95 bold, {len(chinese.characters()) * 4} Chinese glyphs; {len(descriptions())} description states, menus, sliders, info, popups and sidebars in both languages/themes")
+            print(f"PASS: 380 native, 95 bold, 95 compact status, {len(chinese.characters()) * 4} Chinese glyphs; {len(descriptions())} description states, menus, sliders, info, popups and sidebars in both languages/themes")
 
 
 if __name__ == "__main__":

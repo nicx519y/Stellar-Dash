@@ -1056,7 +1056,7 @@ void ST7789_DrawChar(ST7789_Handle* lcd, uint16_t x, uint16_t y, char c, uint32_
     if (c < 32 || c > 126) c = '?';
     const uint8_t index = (uint8_t)(c - 32);
     const uint8_t* glyph = screen_font_title[index];
-    if (scale == 0u || scale == SCREEN_FONT_SMALL) glyph = screen_font_small[index];
+    if (scale == 0u || scale == SCREEN_FONT_SMALL || scale == SCREEN_FONT_STATUS_BOLD) glyph = screen_font_small[index];
     else if (scale == SCREEN_FONT_BODY || scale == SCREEN_FONT_BADGE_BOLD) glyph = screen_font_body[index];
     else if (scale == SCREEN_FONT_LARGE) glyph = screen_font_large[index];
     const uint16_t w = st7789_char_cell_w(scale);
@@ -1066,13 +1066,20 @@ void ST7789_DrawChar(ST7789_Handle* lcd, uint16_t x, uint16_t y, char c, uint32_
     ST7789_FillRect(lcd, x, y, w, h, bg_rgb888);
     for (uint16_t row = 0; row < h && y + row < ST7789_HEIGHT; ++row) {
         uint8_t badgeRow = 0;
+        if (scale == SCREEN_FONT_STATUS_BOLD) {
+            // Status tokens use rows 2..9 of the native 6x12 strike. Crop the
+            // blank top/bottom rows and embolden rightwards, leaving 1px tracking.
+            badgeRow = glyph[row + 2u];
+            badgeRow = (badgeRow | (badgeRow >> 1u)) & 0xfcu;
+        }
         if (scale == SCREEN_FONT_BADGE_BOLD) {
             badgeRow = glyph[row]; // Badge glyphs have an 8px, one-byte row.
             if (row > 0u) badgeRow |= glyph[row - 1u];
             badgeRow |= badgeRow >> 1u;
         }
         for (uint16_t col = 0; col < w && x + col < ST7789_WIDTH; ++col) {
-            const bool ink = (glyph[row * stride + col / 8u] & (0x80u >> (col % 8u))) != 0;
+            const bool ink = scale != SCREEN_FONT_STATUS_BOLD &&
+                (glyph[row * stride + col / 8u] & (0x80u >> (col % 8u))) != 0;
             const bool boldInk = (badgeRow & (0x80u >> col)) != 0;
             if (ink || boldInk)
                 ST7789_DrawPixel(lcd, x + col, y + row, fg_rgb888);

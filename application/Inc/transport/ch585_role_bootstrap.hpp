@@ -56,6 +56,7 @@ private:
     uint32_t sleepResumeSince = 0u;
     uint32_t sleepSelectLast = 0u;
     bool sleepResumeActive = false;
+    bool sleepHandoffRequested = false;
     Ch585Role activeRole = Ch585Role::SafeIdle;
     Ch585BootstrapState bootstrapState = Ch585BootstrapState::Off;
     bool usbStartupPrepared = false;

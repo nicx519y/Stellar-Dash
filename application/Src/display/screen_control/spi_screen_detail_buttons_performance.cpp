@@ -139,6 +139,15 @@ static ButtonsPerfPreset current_matched_preset(void) {
     return preset;
 }
 
+const char* ScreenDetailButtonsPerformance_StatusLabel(void) {
+    switch (current_matched_preset()) {
+        case PRESET_FASTEST: return "FST";
+        case PRESET_BALANCED: return "BAL";
+        case PRESET_STABILITY: return "STB";
+        default: return "CUS";
+    }
+}
+
 static void apply_preset_to_all(GamepadProfile* p, ButtonsPerfPreset preset) {
     if (!p) return;
     RapidTriggerProfile v = p->triggerConfigs.triggerConfigs[0];

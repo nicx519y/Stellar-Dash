@@ -25,6 +25,9 @@ namespace {
 #endif
 
 static bool s_readySeen = false;
+enum class ReadyPhase { Assert, Stable, Release, Settle, Ready, Failed };
+static ReadyPhase s_phase = ReadyPhase::Failed;
+static uint32_t s_waitStarted = 0u, s_phaseStarted = 0u;
 
 static void enableGpioClock(GPIO_TypeDef* port) {
     if (port == GPIOA) __HAL_RCC_GPIOA_CLK_ENABLE();
@@ -58,6 +61,54 @@ namespace RFBootReady {
 
 void reset() {
     s_readySeen = false;
+    s_phase = ReadyPhase::Failed;
+}
+
+void beginWait() {
+    configureReadyInputPullup();
+    s_readySeen = false;
+    s_phase = ReadyPhase::Assert;
+    s_waitStarted = s_phaseStarted = HAL_GetTick();
+}
+
+// Main-loop control logic, not a timing-critical ISR. Keep its code footprint
+// bounded in AXI SRAM, including builds with the formal trust configuration.
+__attribute__((optimize("Os"))) WaitResult pollWait(uint32_t timeoutMs) {
+    const uint32_t now = HAL_GetTick();
+    const bool asserted = HAL_GPIO_ReadPin(RF_BRIDGE_IRQ_GPIO_PORT,
+        RF_BRIDGE_IRQ_PIN) == RF_BRIDGE_IRQ_ASSERTED_STATE;
+    switch (s_phase) {
+    case ReadyPhase::Assert:
+        if (asserted) { s_phase = ReadyPhase::Stable; s_phaseStarted = now; }
+        break;
+    case ReadyPhase::Stable:
+        if (!asserted) s_phase = ReadyPhase::Assert;
+        else if (now - s_phaseStarted >= RF_BOOT_READY_STABLE_MS) {
+            s_phase = ReadyPhase::Release;
+            s_phaseStarted = now;
+        }
+        break;
+    case ReadyPhase::Release:
+        if (!asserted) { s_phase = ReadyPhase::Settle; s_phaseStarted = now; }
+        else if (now - s_phaseStarted >= RF_BOOT_READY_DEASSERT_TIMEOUT_MS)
+            s_phase = ReadyPhase::Failed;
+        break;
+    case ReadyPhase::Settle:
+        // A new low is not a role ACK: no role command has been sent yet.
+        if (asserted) s_phase = ReadyPhase::Failed;
+        else if (now - s_phaseStarted >= RF_BOOT_READY_SETTLE_MS) {
+            s_phase = ReadyPhase::Ready;
+            s_readySeen = true;
+        }
+        break;
+    default: break;
+    }
+    // Once a stable pulse starts, allow its bounded release/settle even if
+    // it straddles the passive-ready deadline. Never clock that low pulse.
+    if ((s_phase == ReadyPhase::Assert || s_phase == ReadyPhase::Stable) &&
+        now - s_waitStarted >= timeoutMs) s_phase = ReadyPhase::Failed;
+    return s_phase == ReadyPhase::Ready ? WaitResult::Ready :
+        (s_phase == ReadyPhase::Failed ? WaitResult::Timeout : WaitResult::Pending);
 }
 
 bool waitForModuleReady(uint32_t timeoutMs) {

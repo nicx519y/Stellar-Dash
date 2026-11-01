@@ -37,9 +37,18 @@ ScreenStatusBarLayout ScreenUI_StatusBarLayout(void) {
     layout.topArrowY = layout.profileY + profileH / 2u;
     layout.bottomArrowY = layout.batteryY + SPI_SCREEN_BATTERY_BODY_H / 2u;
     const uint16_t platformCenter = layout.platformY + SPI_SCREEN_STATUS_ICON_H / 2u;
-    layout.connectionY = (platformCenter + layout.bottomArrowY) / 2u - SPI_SCREEN_STATUS_ICON_H / 2u;
+    const uint16_t platformTop = platformCenter - SPI_SCREEN_BATTERY_BODY_H / 2u;
+    // Center the entire label + four-preset indicator in the free space.
+    layout.performanceY = (layout.profileY + profileH + platformTop - SPI_SCREEN_STATUS_PERFORMANCE_H) / 2u;
+    const uint16_t platformBottom = platformTop + SPI_SCREEN_BATTERY_BODY_H;
+    const uint16_t connectionH = SPI_SCREEN_CONNECTION_ICON_H + 2u +
+        ScreenUI_CharCellH(SPI_SCREEN_STATUS_META_TEXT_SCALE);
+    // Center the connection + rate as one unit; round down-screen for half pixels.
+    layout.connectionY = (platformBottom + layout.batteryY - connectionH + 1u) / 2u;
+    layout.reportRateY = layout.connectionY + SPI_SCREEN_CONNECTION_ICON_H + 2u;
     return layout;
 }
+
 
 void ScreenUI_DrawListArrows(ST7789_Handle* lcd, bool canUp, bool canDown, uint32_t fg, uint32_t bg) {
     const uint16_t x = ST7789_WIDTH - SPI_SCREEN_RIGHT_BAR_W;

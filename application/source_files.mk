@@ -183,6 +183,7 @@ Src/display/screen_control/spi_screen_standby.cpp \
 Src/display/screen_control/spi_screen_timed_popup.cpp \
 Src/display/screen_control/spi_screen_ui_common.cpp \
 Src/display/screen_control/spi_screen_theme.cpp \
+Src/display/screen_control/spi_screen_status_bar.cpp \
 Libs/CRC32/src/CRC32.cpp
 
 APPLICATION_INCLUDE_DIRS := \

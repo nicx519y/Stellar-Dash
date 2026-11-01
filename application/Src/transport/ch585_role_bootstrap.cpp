@@ -43,6 +43,7 @@ void Ch585RoleBootstrap::shutdown()
         HAL_GPIO_Init(CH585_IRQ_GPIO_PORT, &gpio);
     }
     sleepResumeActive = false;
+    sleepHandoffRequested = false;
     usbStartupPrepared = false;
     (void)BOARD_POWER.setUsbHostEnabled(false);
     BOARD_POWER.setCh585Enabled(false);
@@ -59,22 +60,44 @@ void Ch585RoleBootstrap::beginRfSleepResume()
     SleepDiagnostics_Record(SleepStage::RadioPowerWait);
 }
 
-Ch585ResumeResult Ch585RoleBootstrap::serviceRfSleepResume()
+// This asynchronous control path is not on the input ISR hot path.
+__attribute__((optimize("Os"))) Ch585ResumeResult Ch585RoleBootstrap::serviceRfSleepResume()
 {
     if (!sleepResumeActive || selector == nullptr) return Ch585ResumeResult::Failed;
     const uint32_t now = HAL_GetTick();
     if (bootstrapState == Ch585BootstrapState::Off) {
         if (now - sleepResumeSince < CH585_POWER_OFF_MIN_MS) return Ch585ResumeResult::Pending;
+        // Establish inactive NSS before power-on, as in prepared USB startup.
+        // Initializing the port emits no SPI clocks or role request.
+        if (!USBBoardLinkPort_Init()) {
+            bootstrapState = Ch585BootstrapState::Failed;
+            return Ch585ResumeResult::Failed;
+        }
         BOARD_POWER.setCh585Enabled(true);
+        RFBootReady::beginWait();
         SleepDiagnostics_Record(SleepStage::RadioPowerOn);
         bootstrapState = Ch585BootstrapState::Booting;
         sleepResumeSince = now;
         return Ch585ResumeResult::Pending;
     }
     if (bootstrapState == Ch585BootstrapState::Booting) {
-        // Keep the bus idle for the complete existing handoff budget. Unlike
-        // start(), this path does not block UI rendering while CH585 boots.
-        if (now - sleepResumeSince < CH585_POWER_ON_SETTLE_MS + CH585_READY_HINT_TIMEOUT_MS) return Ch585ResumeResult::Pending;
+        // Keep local input/rendering alive while observing the real boot pulse.
+        // Elapsed time alone never proves that the IAP has entered Application.
+        if (now - sleepResumeSince < CH585_POWER_ON_SETTLE_MS) return Ch585ResumeResult::Pending;
+        const auto ready = RFBootReady::pollWait(CH585_READY_HINT_TIMEOUT_MS +
+            (sleepHandoffRequested ? 0u : CH585_POWER_ON_SETTLE_MS));
+        if (ready == RFBootReady::WaitResult::Pending) return Ch585ResumeResult::Pending;
+        if (ready == RFBootReady::WaitResult::Timeout) {
+            // Same one-byte handoff as cold boot. It refuses an asserted line
+            // and releases NSS before Application initializes its SPI parser.
+            if (sleepHandoffRequested || !USBBoardLinkPort_RequestApplicationHandoff()) {
+                bootstrapState = Ch585BootstrapState::Failed;
+                return Ch585ResumeResult::Failed;
+            }
+            sleepHandoffRequested = true;
+            RFBootReady::beginWait();
+            return Ch585ResumeResult::Pending;
+        }
         bootstrapState = Ch585BootstrapState::Selecting;
         SleepDiagnostics_Record(SleepStage::RadioSelectRole);
         sleepResumeSince = now;

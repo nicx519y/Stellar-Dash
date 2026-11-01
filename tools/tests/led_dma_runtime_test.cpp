@@ -693,10 +693,12 @@ static void keyPowerStartup() {
     callback(0);
     WS2812B_GetUpdateStats(WS2812B_STRIP_KEYS, nullptr, &completed);
     assert(gate.ready(completed, 9001, rampStart) && rampStart == 9001);
-    auto drive = LedConfigSafety::interpolateDrive8(64, 9001 - rampStart, 3000);
+    auto drive = LedConfigSafety::interpolateDrive8(
+        64, 9001 - rampStart, LedConfigSafety::kStartupRampDurationMs);
     assert(drive == 0);
-    assert(gate.ready(completed, 10501, rampStart) && rampStart == 9001);
-    drive = LedConfigSafety::interpolateDrive8(64, 10501 - rampStart, 3000);
+    assert(gate.ready(completed, 10001, rampStart) && rampStart == 9001);
+    drive = LedConfigSafety::interpolateDrive8(
+        64, 10001 - rampStart, LedConfigSafety::kStartupRampDurationMs);
     assert(drive == 32);
     WS2812B_SetAllLEDBrightnessStrip(WS2812B_STRIP_KEYS, drive);
     assert(WS2812B_SubmitStrip(WS2812B_STRIP_KEYS));

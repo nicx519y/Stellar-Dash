@@ -8,6 +8,10 @@
 #define SPI_SCREEN_RIGHT_BAR_W 40u
 #define SPI_SCREEN_Y_OFFSET 34u
 #define SPI_SCREEN_STATUS_BAR_TEXT_SCALE SCREEN_FONT_TITLE
+#define SPI_SCREEN_STATUS_META_TEXT_SCALE SCREEN_FONT_STATUS_BOLD
+#define SPI_SCREEN_STATUS_BADGE_W 28u
+#define SPI_SCREEN_STATUS_PERFORMANCE_H 15u
+#define SPI_SCREEN_CONNECTION_ICON_H 11u
 // Native strikes share one metric definition with the LCD renderer.
 #define SPI_SCREEN_PROFILE_TEXT_SCALE SCREEN_FONT_BADGE_BOLD
 #define SPI_SCREEN_MENU_TEXT_SCALE SCREEN_FONT_TITLE
@@ -21,8 +25,10 @@
 
 struct ScreenStatusBarLayout {
     uint16_t profileY;
+    uint16_t performanceY;
     uint16_t platformY;
     uint16_t connectionY;
+    uint16_t reportRateY;
     uint16_t batteryY;
     uint16_t topArrowY;
     uint16_t bottomArrowY;

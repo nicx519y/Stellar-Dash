@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include "screen_control/spi_screen_ui_common.hpp"
+#include "screen_control/spi_screen_status_bar.hpp"
 #include "board_mode.hpp"
 #include "connection_manager.hpp"
 #include "storagemanager.hpp"
@@ -14,7 +15,7 @@ BoardStub BOARD_MODE;
 ConnectionStub CONNECTION_MANAGER;
 
 struct Rect { uint16_t x, y, width, height; uint32_t color; };
-struct TextInk { std::string label; uint32_t fg, bg; };
+struct TextInk { std::string label; uint32_t fg, bg; uint16_t x, y; uint8_t font; };
 static std::vector<TextInk> textInk;
 static std::vector<Rect> rectangles;
 static std::vector<std::string> labels;
@@ -38,7 +39,7 @@ void ST7789_DrawString(ST7789_Handle*, uint16_t x, uint16_t y, const char* text,
     assert(x + ScreenUI_TextPxW(text, scale) <= ST7789_WIDTH);
     assert(y + ScreenUI_CharCellH(scale) <= ST7789_HEIGHT);
     labels.emplace_back(text);
-    textInk.push_back({text, fg, bg});
+    textInk.push_back({text, fg, bg, x, y, scale});
 }
 void ScreenUI_RequestDeferredSave(uint32_t) { std::abort(); }
 
@@ -118,7 +119,78 @@ int main() {
     assert(layout.topArrowY == layout.profileY + ScreenUI_CharCellH(SPI_SCREEN_PROFILE_TEXT_SCALE) / 2u);
     assert(layout.bottomArrowY == layout.batteryY + SPI_SCREEN_BATTERY_BODY_H / 2u);
     assert(layout.topArrowY == 23 && layout.bottomArrowY == 148);
-    assert(layout.connectionY + SPI_SCREEN_STATUS_ICON_H / 2u == (86 + 148) / 2u);
+    const uint16_t metaH = ScreenUI_CharCellH(SPI_SCREEN_STATUS_META_TEXT_SCALE);
+    assert(layout.profileY + ScreenUI_CharCellH(SPI_SCREEN_PROFILE_TEXT_SCALE) < layout.performanceY);
+    assert(layout.performanceY + metaH < layout.platformY);
+    const uint16_t platformTop = layout.platformY + (SPI_SCREEN_STATUS_ICON_H - SPI_SCREEN_BATTERY_BODY_H) / 2u;
+    const uint16_t profileBottom = layout.profileY + ScreenUI_CharCellH(SPI_SCREEN_PROFILE_TEXT_SCALE);
+    assert(static_cast<unsigned>(layout.performanceY - profileBottom) == platformTop - (layout.performanceY + SPI_SCREEN_STATUS_PERFORMANCE_H));
+    assert(layout.connectionY > platformTop + SPI_SCREEN_BATTERY_BODY_H);
+    assert(layout.connectionY + SPI_SCREEN_CONNECTION_ICON_H + 2u == layout.reportRateY);
+    assert(layout.reportRateY + metaH < layout.batteryY);
+    const unsigned connectionGapAbove = layout.connectionY - (platformTop + SPI_SCREEN_BATTERY_BODY_H);
+    const unsigned connectionGapBelow = layout.batteryY - (layout.reportRateY + metaH);
+    assert(connectionGapAbove == connectionGapBelow || connectionGapAbove == connectionGapBelow + 1u);
+    assert(layout.performanceY == 47u && layout.connectionY == 107u && layout.reportRateY == 120u);
+    const uint16_t rateHz[] = {0, 125, 250, 500, 1000, 2000, 4000, 8000, 3000};
+    const char* rateText[] = {"--", "125", "250", "500", "1K", "2K", "4K", "8K", "--"};
+    for (unsigned i = 0; i < sizeof(rateHz) / sizeof(rateHz[0]); ++i) {
+        assert(std::string(ScreenUI_ReportRateLabel(rateHz[i])) == rateText[i]);
+        for (bool light : {false, true}) {
+            const auto theme = ScreenUI_ColdSteelStyle(light);
+            labels.clear(); textInk.clear();
+            ScreenUI_DrawStatusMeta(&lcd, "FST", rateHz[i], theme);
+            assert(labels.size() == 2 && labels[0] == "FST" && labels[1] == rateText[i]);
+            assert(textInk[0].y == layout.performanceY && textInk[1].y == layout.reportRateY);
+            for (const auto& t : textInk) {
+                assert(t.x + ScreenUI_TextPxW(t.label.c_str(), t.font) <= SPI_SCREEN_LEFT_BAR_W);
+                assert(t.font == SPI_SCREEN_STATUS_META_TEXT_SCALE);
+            }
+            assert(textInk[0].fg == theme.icon && textInk[0].bg == theme.bg);
+            assert(textInk[1].fg == theme.bg && textInk[1].bg == theme.icon);
+            assert(textInk[0].x == 10u);
+        }
+    }
+    const char* presets[] = {"FST", "BAL", "STB", "CUS", "unknown", nullptr};
+    for (bool light : {false, true}) {
+        const auto theme = ScreenUI_ColdSteelStyle(light);
+        for (unsigned p = 0; p < 6u; ++p) {
+            rectangles.clear(); labels.clear(); textInk.clear();
+            ScreenUI_DrawStatusMeta(&lcd, presets[p], 8000, theme);
+            const unsigned selected = p < 4u ? p : 3u;
+            assert(labels[0] == presets[selected]);
+            for (unsigned slot = 0; slot < 4u; ++slot) {
+                const unsigned x = 6u + slot * 8u;
+                for (unsigned y = layout.performanceY + 12u; y < layout.performanceY + 15u; ++y)
+                    for (unsigned col = x; col < x + 4u; ++col)
+                        assert(pixels[y][col] == (slot == selected ? theme.accent : theme.icon));
+            }
+            const auto& bar = rectangles.back();
+            assert(bar.x == 6 && bar.y == layout.reportRateY && bar.width == 28 && bar.height == 8);
+            assert(bar.color == theme.icon);
+        }
+        for (auto icon : {ScreenConnectionIcon::Usb, ScreenConnectionIcon::Wireless, ScreenConnectionIcon::Maintenance}) {
+            rectangles.clear(); labels.clear();
+            ScreenUI_DrawConnectionIcon(&lcd, icon, theme);
+            for (const auto& r : rectangles) {
+                assert(r.x >= 6 && r.x + r.width <= 34);
+                assert(r.y >= layout.connectionY && r.y + r.height <= layout.connectionY + 11u);
+                assert(r.color == theme.icon || r.color == theme.bg);
+            }
+            if (icon == ScreenConnectionIcon::Maintenance) {
+                assert(labels.size() == 1 && labels[0] == "ISP");
+            } else {
+                assert(labels.empty() && rectangles.size() > 1);
+            }
+            if (icon == ScreenConnectionIcon::Wireless) {
+                for (unsigned y = layout.connectionY; y < layout.connectionY + 11u; ++y)
+                    for (unsigned x = 0; x < 10u; ++x)
+                        assert(pixels[y][6u + x] == pixels[y][33u - x]);
+            }
+        }
+    }
+    ScreenUI_DrawStatusMeta(nullptr, "FST", 8000, style);
+    ScreenUI_DrawConnectionIcon(nullptr, ScreenConnectionIcon::Usb, style);
     rectangles.clear();
     ScreenUI_DrawListArrows(&lcd, true, true, style.text, style.bg);
     bool upperTip = false, lowerTip = false;

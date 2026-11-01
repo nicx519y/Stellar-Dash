@@ -6,6 +6,7 @@
 
 bool ScreenDetailSocd_WarningVisible(void);
 bool ScreenDetailButtonsPerformance_IsEditing(void);
+const char* ScreenDetailButtonsPerformance_StatusLabel(void);
 const char* ScreenDetailButtonsPerformance_ConfirmLabel(uint8_t index);
 const char* ScreenDetailTxIsp_BackLabel(void);
 

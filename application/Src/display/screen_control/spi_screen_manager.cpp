@@ -16,6 +16,7 @@
 #include "micro_timer.hpp"
 #include "storagemanager.hpp"
 #include "screen_control/spi_screen_ui_common.hpp"
+#include "screen_control/spi_screen_status_bar.hpp"
 #include "screen_control/spi_screen_layout.hpp"
 #include "screen_control/spi_screen_main_list.hpp"
 #include "screen_control/spi_screen_detail_entries.hpp"
@@ -35,6 +36,7 @@
 #include "power_manager.hpp"
 #include "connection_manager.hpp"
 #include "input_runtime_policy.hpp"
+#include "report_scheduler.hpp"
 #include "system_sleep_manager.hpp"
 #include "main_runtime_control.hpp"
 #include "states/input_state.hpp"
@@ -213,20 +215,6 @@ static uint8_t compute_backlight_percent(uint32_t nowMs) {
 #endif
 }
 
-static const char* get_connection_mode_label(void) {
-    if (MainRuntime_IsTxIspActive()) return "ISP";
-    if (CONNECTION_MANAGER.getMode() == ConnectionMode::CONNECTION_MODE_USB) {
-        if (CONNECTION_MANAGER.getLinkState() == ConnectionLinkState::Connected) return "USB";
-        return "USB?";
-    }
-    switch (CONNECTION_MANAGER.getLinkState()) {
-        case ConnectionLinkState::Connected: return "2.4G";
-        case ConnectionLinkState::Connecting: return "2.4~";
-        case ConnectionLinkState::Error: return "2.4!";
-        default: return "2.4?";
-    }
-}
-
 __attribute__((optimize("Os"))) static void update_battery_ui_cache(uint32_t nowMs) {
     const PowerSnapshot power = POWER_MANAGER.getSnapshot();
     if (g_battUiLastSampleMs != 0u && (uint32_t)(nowMs - g_battUiLastSampleMs) < 1000u &&
@@ -270,39 +258,6 @@ static uint8_t battery_animated_soc(uint8_t baseSoc, uint32_t nowMs) {
     const uint32_t remaining = 100u - baseSoc;
     return (uint8_t)(baseSoc +
                      ((remaining * phaseMs + (sweepMs / 2u)) / sweepMs));
-}
-
-static const char* get_connection_mode_icon_name(void) {
-    if (MainRuntime_IsTxIspActive()) return nullptr;
-    if (CONNECTION_MANAGER.getMode() == ConnectionMode::CONNECTION_MODE_USB) {
-        return "USB_dark";
-    }
-    return "wireless_dark";
-}
-
-static bool ensure_assets_mmap(void) {
-    if (QSPI_W25Qxx_IsMemoryMappedMode()) return true;
-    return QSPI_W25Qxx_EnterMemoryMappedMode() == QSPI_W25Qxx_OK && QSPI_W25Qxx_IsMemoryMappedMode();
-}
-
-static bool render_centered_asset_icon(ST7789_Handle* lcd,
-                                       uint16_t x,
-                                       uint16_t y,
-                                       uint16_t w,
-                                       uint16_t h,
-                                       const char* assetName) {
-    if (!lcd || !assetName || !ensure_assets_mmap()) return false;
-
-    ST7789_AssetInfo info;
-    memset(&info, 0, sizeof(info));
-    if (!ST7789_Assets_Find(assetName, &info)) return false;
-    if (info.type != ST7789_ASSET_TYPE_RGB565LE || !info.data || info.width == 0u || info.height == 0u) return false;
-
-    const uint16_t drawX = (info.width < w) ? (uint16_t)(x + (w - info.width) / 2u) : x;
-    const uint16_t drawY = (info.height < h) ? (uint16_t)(y + (h - info.height) / 2u) : y;
-    ScreenUI_DrawTintedIcon(lcd, drawX, drawY, info.width, info.height, static_cast<const uint8_t*>(info.data),
-                            g_style.icon, g_style.bg);
-    return true;
 }
 
 __attribute__((optimize("Os"))) static void render_left_battery_icon(ST7789_Handle* lcd, uint16_t leftW, uint16_t bodyY, uint32_t fg, uint32_t bg, uint32_t nowMs) {
@@ -941,15 +896,6 @@ __attribute__((optimize("Os"))) void SPIScreenManager::renderFrame() {
     }
 }
 
-static void render_platform_badge(ST7789_Handle* lcd, const char* label, uint32_t fg, uint32_t bg) {
-    const uint8_t font = SCREEN_FONT_BADGE_BOLD;
-    const uint16_t badgeW = 28u; // Battery body (26px) plus terminal (2px).
-    const uint16_t badgeH = SPI_SCREEN_BATTERY_BODY_H;
-    const uint16_t x = (SPI_SCREEN_LEFT_BAR_W - badgeW) / 2u;
-    const uint16_t y = ScreenUI_StatusBarLayout().platformY + (SPI_SCREEN_STATUS_ICON_H - badgeH) / 2u;
-    ST7789_FillRect(lcd, x, y, badgeW, badgeH, fg);
-    ScreenUI_DrawStringCenteredInBox(lcd, x, y, badgeW, badgeH, label, bg, fg, font);
-}
 
 __attribute__((optimize("Os"))) void SPIScreenManager::renderBars() {
     const uint16_t w = ST7789_WIDTH;
@@ -973,10 +919,8 @@ __attribute__((optimize("Os"))) void SPIScreenManager::renderBars() {
     const uint16_t topY = 0;
     const uint16_t midY = areaH;
 
-    const uint8_t tokenScale = SPI_SCREEN_STATUS_BAR_TEXT_SCALE;
     const uint8_t profileScale = SPI_SCREEN_PROFILE_TEXT_SCALE;
     const uint16_t profileH = ScreenUI_CharCellH(profileScale);
-    const uint16_t statusIconH = SPI_SCREEN_STATUS_ICON_H;
     const auto layout = ScreenUI_StatusBarLayout();
 
     uint8_t currentProfileIdx = 0xFF;
@@ -993,10 +937,17 @@ __attribute__((optimize("Os"))) void SPIScreenManager::renderBars() {
     char token[6] = "P??";
     if (currentProfileIdx != 0xFF) snprintf(token, sizeof(token), "P%02u", (unsigned)(currentProfileIdx + 1u));
     ScreenUI_DrawStringCenteredInBox(&g_lcd, 0, layout.profileY, leftW, profileH, token, g_style.accent, barBg, profileScale);
-    render_platform_badge(&g_lcd, mode, g_style.icon, barBg);
-    if (!render_centered_asset_icon(&g_lcd, 0, layout.connectionY, leftW, statusIconH, get_connection_mode_icon_name())) {
-        ScreenUI_DrawStringCenteredInBox(&g_lcd, 0, layout.connectionY, leftW, statusIconH, get_connection_mode_label(), g_style.icon, barBg, tokenScale);
-    }
+    ScreenUI_DrawPlatformBadge(&g_lcd, mode, g_style.icon, barBg);
+    const ScreenConnectionIcon connectionIcon = MainRuntime_IsTxIspActive() ? ScreenConnectionIcon::Maintenance :
+        (CONNECTION_MANAGER.getMode() == ConnectionMode::CONNECTION_MODE_RF24G ?
+            ScreenConnectionIcon::Wireless : ScreenConnectionIcon::Usb);
+    ScreenUI_DrawConnectionIcon(&g_lcd, connectionIcon, g_style);
+    // Read the running clock, not the requested rate: USB/platform limits and
+    // RF fallback may apply a lower rate. Maintenance has no active report rate.
+    const bool rateActive = MainRuntime_IsInputActive() && REPORT_SCHEDULER.isStarted() &&
+        (CONNECTION_MANAGER.getMode() != CONNECTION_MODE_RF24G || CONNECTION_MANAGER.isReportRateConfirmed());
+    ScreenUI_DrawStatusMeta(&g_lcd, ScreenDetailButtonsPerformance_StatusLabel(),
+        rateActive ? REPORT_SCHEDULER.getRate() : 0u, g_style);
     render_left_battery_icon(&g_lcd, leftW, layout.batteryY, g_style.icon, barBg, nowMs);
 
     if(g_firmwareRecoveryVisible && ScreenTimedPopup_IsVisible(&g_actionPopup)){

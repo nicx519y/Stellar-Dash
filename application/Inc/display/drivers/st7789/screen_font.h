@@ -9,11 +9,13 @@ enum {
     SCREEN_FONT_TITLE = 2, /* 8x16 bold: menus, titles and values */
     SCREEN_FONT_BODY = 3,  /* 8x14: descriptions */
     SCREEN_FONT_LARGE = 4, /* 12x24 bold: charge percentage */
-    SCREEN_FONT_BADGE_BOLD = 5 /* 8x14: body strike with 1px right/down emboldening */
+    SCREEN_FONT_BADGE_BOLD = 5, /* 8x14: body strike with 1px right/down emboldening */
+    SCREEN_FONT_STATUS_BOLD = 6 /* ASCII status tokens: 6x8 ink + 1px tracking */
 };
 
 static inline uint16_t ScreenFont_CellW(uint8_t font)
 {
+    if (font == SCREEN_FONT_STATUS_BOLD) return 7;
     if (font == 0 || font == SCREEN_FONT_SMALL) return 6;
     if (font == SCREEN_FONT_LARGE) return 12;
     return 8;
@@ -21,6 +23,7 @@ static inline uint16_t ScreenFont_CellW(uint8_t font)
 
 static inline uint16_t ScreenFont_CellH(uint8_t font)
 {
+    if (font == SCREEN_FONT_STATUS_BOLD) return 8;
     if (font == 0 || font == SCREEN_FONT_SMALL) return 12;
     if (font == SCREEN_FONT_BODY || font == SCREEN_FONT_BADGE_BOLD) return 14;
     if (font == SCREEN_FONT_LARGE) return 24;
