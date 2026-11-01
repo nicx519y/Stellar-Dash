@@ -1,3 +1,5 @@
+#include "usb_diagnostics_tx.h"
+#include "usb_mode_memory.h"
 #include "usb_webhid_memory.h"
 #include "usb_monitor.h"
 #include "usb_device.h"
@@ -91,8 +93,8 @@ static uint8_t s_last_report[WEBHID_REPORT_BYTES];
 static uint8_t s_last_telemetry[USB_BOARD_TELEMETRY_FRAME_BYTES];
 static uint8_t s_xbox_out[USB_XBOX_DEVICE_PACKET_BYTES];
 static uint8_t s_high_rate_out[HBOX_CLIENT_CONTROL_BYTES];
-static uint8_t s_webhid_out[USBDEV_WEBHID_OUT_QUEUE_DEPTH]
-                           [WEBHID_REPORT_BYTES];
+#define s_webhid_out g_usb_mode_memory.webhid_out
+_Static_assert(USBDEV_WEBHID_OUT_QUEUE_DEPTH == 8u && WEBHID_REPORT_BYTES == 1024u, "mode arena sizes");
 
 static volatile uint8_t s_mounted;
 static volatile uint8_t s_suspended;
@@ -366,7 +368,7 @@ static bool data_path_reset(bool settle_same_bus)
     s_webhid_out_head = 0u;
     s_webhid_out_tail = 0u;
     s_webhid_out_count = 0u;
-    memset(s_webhid_out, 0, sizeof(s_webhid_out));
+    if(s_profile == USB_BOARD_PROFILE_WEB_CONFIG) memset(s_webhid_out, 0, sizeof(s_webhid_out));
     if(s_profile == USB_BOARD_PROFILE_WEB_CONFIG)
     {
         /*
@@ -1694,7 +1696,9 @@ bool usb_device_hw_init(usb_board_profile_t profile)
                      USBHS_UDIE_TRANSFER |
                      USBHS_UDIE_LINK_RDY;
     endpoints_init();
-    R8_USB2_BASE_MODE = USBHS_UD_SPEED_HIGH;
+    R8_USB2_BASE_MODE = ((s_profile == USB_BOARD_PROFILE_PS4) ||
+                            (s_profile == USB_BOARD_PROFILE_PS5_COMPAT))
+                               ? USBHS_UD_SPEED_FULL : USBHS_UD_SPEED_HIGH;
     R8_USB2_CTRL = USBHS_UD_DEV_EN |
                    USBHS_UD_DMA_EN |
                    USBHS_UD_LPM_EN |
@@ -2375,4 +2379,14 @@ void USB2_DEVICE_IRQHandler(void)
 
 uint8_t usb_device_monitor_speed(void) {
     return !s_mounted?0u:s_suspended?3u:device_is_high_speed()?2u:1u;
+}
+
+uint16_t usb_device_hw_diag(uint8_t *out) {
+ uint32_t irq=usb_device_irq_save();
+ out[0]=s_address;out[1]=s_configuration;
+ out[2]=s_mounted?(device_is_high_speed()?2u:1u):0u;out[3]=s_suspended;
+ out[4]=s_mounted;out[5]=s_profile;out[6]=s_connected;out[7]=s_initialized;
+ /* Configuration is evidence of SET_CONFIGURATION only. Console usability is unknown. */
+ out[8]=0xff;
+ usb_device_irq_restore(irq);return 9;
 }

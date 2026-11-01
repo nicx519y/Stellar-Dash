@@ -102,7 +102,7 @@ ASFLAGS := \
 
 LDFLAGS := \
 	$(ARCH_FLAGS) \
-	-T$(LINKER_SCRIPT) \
+	-T$(LINKER_SCRIPT) -TUSB/usb_stack_budget.ld \
 	-nostartfiles \
 	--specs=nano.specs \
 	--specs=nosys.specs \
@@ -134,6 +134,8 @@ HAL_EXCLUDE := \
 	$(HAL_DIR)/LED.c
 
 DRV_EXCLUDE := \
+	$(DRIVER_DIR)/CH58x_usbhostBase.c \
+	$(DRIVER_DIR)/CH58x_usbhostClass.c \
 	$(DRIVER_DIR)/CH59x_pwm.c \
 	$(DRIVER_DIR)/CH59x_usbdev.c \
 	$(DRIVER_DIR)/CH59x_usbhostClass.c \
@@ -200,9 +202,10 @@ $(TOOLCHAIN_OK):
 
 check-toolchain: $(TOOLCHAIN_OK)
 
-$(OUT_DIR)/$(PROJECT).elf: $(OBJS) $(LINKER_SCRIPT)
+$(OUT_DIR)/$(PROJECT).elf: $(OBJS) $(LINKER_SCRIPT) USB/usb_stack_budget.ld ../../tools/check_ch585_usb_memory.py
 	@if not exist "$(subst /,\,$(dir $@))" mkdir "$(subst /,\,$(dir $@))"
 	$(CC) $(OBJS) $(LDFLAGS) $(LIBS) -o $@
+	$(PYTHON) ../../tools/check_ch585_usb_memory.py "$@"
 
 $(APP_BIN): $(OUT_DIR)/$(PROJECT).elf
 	$(OBJCOPY) -O binary $< $@

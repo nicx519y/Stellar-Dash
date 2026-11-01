@@ -20,7 +20,7 @@
 
 static const uint8_t s_ps4_device_descriptor[] = {
     0x12u, 0x01u, 0x00u, 0x02u, 0x00u, 0x00u, 0x00u, 0x40u,
-    0xDFu, 0x33u, 0x11u, 0x00u, 0x00u, 0x01u, 0x01u, 0x02u,
+    0x32u, 0x15u, 0x01u, 0x04u, 0x00u, 0x01u, 0x01u, 0x02u,
     0x00u, 0x01u
 };
 
@@ -71,7 +71,7 @@ static const uint8_t s_ps4_configuration_descriptor[] = {
 };
 
 static const char s_ps4_manufacturer[] = "Open Stick Community";
-static const char s_ps4_product[] = "GP2040-CE (PS4)";
+static const char s_ps4_product[] = "XORA";
 static const char s_ps4_version[] = "1.0";
 
 static const uint8_t s_xbox_device_qualifier[] = {

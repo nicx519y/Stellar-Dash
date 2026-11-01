@@ -1,3 +1,4 @@
+#include "usb_mode_memory.h"
 #include "usb_webhid_memory.h"
 #include "usb_device.h"
 #include "usb_monitor.h"
@@ -87,22 +88,26 @@ bool usb_device_init(usb_board_profile_t profile)
 {
     usb_auth_scheme_t auth_scheme;
 
+    /* Quiesce DMA/Device IRQ before changing the shared mode arena. Prepare
+     * authentication before EP0 can service a request in the new profile. */
+    usb_device_hw_shutdown();
     usb_device_transport_reset();
     s_initialized = 0u;
     s_last_fault = 0u;
-
-    if(!usb_profiles_is_supported(profile) || !usb_device_hw_init(profile))
-    {
-        s_last_fault = USB_BOARD_STATUS_NOT_READY;
+    usb_auth_clear();
+    if(!usb_profiles_is_supported(profile)) {
+        s_profile=USB_BOARD_PROFILE_NONE;
+        s_last_fault=USB_BOARD_STATUS_NOT_READY;
         return false;
     }
+    usb_mode_memory_reset(profile == USB_BOARD_PROFILE_WEB_CONFIG);
     s_profile = profile;
     auth_scheme = auth_scheme_for_profile(profile);
-    usb_auth_clear();
-    if((auth_scheme != USB_AUTH_SCHEME_NONE) &&
-       !usb_auth_begin(auth_scheme, (uint8_t)profile))
+    if(((auth_scheme != USB_AUTH_SCHEME_NONE) &&
+        !usb_auth_begin(auth_scheme, (uint8_t)profile)) || !usb_device_hw_init(profile))
     {
         usb_device_hw_shutdown();
+        usb_auth_clear();
         s_profile = USB_BOARD_PROFILE_NONE;
         s_last_fault = USB_BOARD_STATUS_NOT_READY;
         return false;

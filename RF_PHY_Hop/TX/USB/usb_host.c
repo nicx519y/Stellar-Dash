@@ -1,1293 +1,508 @@
-#include "fault_log_api.h"
-#include "usb_host.h"
-
-#include <string.h>
-
+#include "usb_diagnostics_tx.h"
+/* XORA asynchronous TinyUSB host adapter; see third_party/tinyusb/UPSTREAM.md. */
 #include "CH58x_common.h"
-#include "CH58x_usbhost.h"
-
-#define USB_HOST_ATTACH_DEBOUNCE_MS          200u
-#define USB_HOST_RECOVERY_BASE_MS            100u
-#define USB_HOST_MAX_ENUM_ATTEMPTS             3u
-#define USB_HOST_DMA_BYTES                    64u
-#define USB_HOST_DEVICE_ADDRESS                2u
-#define USB_HOST_DEVICE_DESCRIPTOR_BYTES      18u
-#define USB_HOST_CONFIG_HEADER_BYTES           9u
-#define USB_HOST_BUS_RESET_MS                 15u
-#define USB_HOST_RESET_SETTLE_MS               1u
-#define USB_HOST_ADDRESS_SETTLE_MS            10u
-#define USB_HOST_CONTROLLER_START_LOOPS     1024u
-
-typedef enum
+#include "host/usbh.h"
+#include "host/usbh_pvt.h"
+#include "tusb.h"
+#include "usb_host.h"
+#include <string.h>
+extern void hcd_ch585_poll(void);
+static usb_host_interface_t interfaces[USB_HOST_MAX_INTERFACES];
+static uint32_t connections[8], next_connection, session, sequence;
+static uint8_t selected, ready, fault, last_error, enum_attempts;
+static uint8_t mounted[8];
+static uint32_t fault_generation, clock_snapshot;
+uint32_t usb_host_clock_snapshot(void) { return clock_snapshot; }
+typedef struct
 {
-    USB_HOST_ENUM_IDLE = 0,
-    USB_HOST_ENUM_RESET_ASSERTED,
-    USB_HOST_ENUM_RESET_SETTLE,
-    USB_HOST_ENUM_GET_DEVICE,
-    USB_HOST_ENUM_SET_ADDRESS,
-    USB_HOST_ENUM_ADDRESS_SETTLE,
-    USB_HOST_ENUM_GET_CONFIG_HEADER,
-    USB_HOST_ENUM_GET_CONFIG_FULL,
-    USB_HOST_ENUM_SET_CONFIG
-} usb_host_enum_phase_t;
-
-/*
- * USBFS DMA addresses must be four-byte aligned and explicitly assigned before
- * USB_HostInit(). The original placeholder left both SDK pointers unset.
- */
-__attribute__((aligned(4))) static uint8_t s_host_rx_dma[USB_HOST_DMA_BYTES];
-__attribute__((aligned(4))) static uint8_t s_host_tx_dma[USB_HOST_DMA_BYTES];
-__attribute__((aligned(4))) static uint8_t
-    s_config_descriptor[USB_HOST_CONTROL_MAX_BYTES];
-
-static usb_host_state_t s_state;
-static uint8_t s_ready;
-static uint8_t s_attached;
-static uint8_t s_enumerated;
-static uint8_t s_enum_attempts;
-static uint8_t s_current_fault;
-static uint8_t s_last_error;
-static uint8_t s_transfer_busy;
-static uint8_t s_interrupt_in_toggle[16];
-static uint8_t s_interrupt_out_toggle[16];
-static uint16_t s_vid;
-static uint16_t s_pid;
-static uint8_t s_device_address;
-static uint8_t s_device_speed;
-static uint8_t s_device_type;
-static uint8_t s_device_class;
-static uint8_t s_interrupt_in_endpoint;
-static uint8_t s_interrupt_out_endpoint;
-static uint8_t s_configuration_value;
-static uint8_t s_interface_class;
-static uint8_t s_interface_protocol;
-static uint16_t s_configuration_length;
-static usb_host_interface_t s_interfaces[USB_HOST_MAX_INTERFACES];
-static uint8_t s_interface_count;
-static usb_host_enum_phase_t s_enum_phase;
-static uint32_t s_enum_phase_started_cycles;
-static uint32_t s_generation;
-static uint32_t s_fault_generation;
-static uint32_t s_state_started_cycles;
-
-static uint32_t host_now_cycles(void)
+    uint8_t state, addr, ep, status, queued;
+    uint16_t length, actual;
+    uint32_t token, generation, session, started;
+} request_t;
+static request_t requests[3];
+static tusb_control_request_t control_setup;
+static uint8_t control_data[512] __attribute__((aligned(4)));
+static uint8_t interrupt_data[2][64] __attribute__((aligned(4)));
+static usb_host_interface_t *lookup(uint8_t a, uint8_t n)
 {
-    return SysTick->CNTL;
+    for (unsigned i = 0; i < USB_HOST_MAX_INTERFACES; i++)
+        if (interfaces[i].device_address == a && interfaces[i].number == n)
+            return &interfaces[i];
+    return NULL;
 }
-
-static bool host_elapsed_ms(uint32_t started_cycles, uint32_t milliseconds)
+static void remove_interfaces(uint8_t address)
 {
-    uint32_t cycles_per_ms = GetSysClock() / 1000u;
-    uint32_t required_cycles;
-
-    if(cycles_per_ms == 0u)
-    {
-        cycles_per_ms = 1u;
-    }
-    required_cycles = cycles_per_ms * milliseconds;
-    return (uint32_t)(host_now_cycles() - started_cycles) >= required_cycles;
+    /* Compact without reordering survivors, then append newly mounted
+     * interfaces. This matches the upstream listener's stable candidate order. */
+    unsigned kept = 0;
+    for (unsigned i = 0; i < USB_HOST_MAX_INTERFACES; i++)
+        if (interfaces[i].device_address && interfaces[i].device_address != address)
+            interfaces[kept++] = interfaces[i];
+    memset(interfaces + kept, 0, (USB_HOST_MAX_INTERFACES - kept) * sizeof(*interfaces));
 }
-
-static void host_start_monotonic_clock(void)
+static void complete(tuh_xfer_t *x)
 {
-    if((SysTick->CTLR & SysTick_CTLR_STE) == 0u)
-    {
-        SysTick->CTLR = 0u;
-        SysTick->CNTL = 0u;
-        SysTick->CMP = SysTick_LOAD_RELOAD_Msk;
-        /*
-         * Free-running system-clock counter. No interrupt is enabled in the
-         * USB-only role, so it cannot enter the frozen RF timer path.
-         */
-        SysTick->CTLR = SysTick_CTLR_STRE |
-                        SysTick_CTLR_STCLK |
-                        SysTick_CTLR_STE;
-    }
+    request_t *r = &requests[x->ep_addr ? ((x->ep_addr & 0x80) ? 1 : 2) : 0];
+    if (r->state != 1 || r->token != x->user_data || r->addr != x->daddr ||
+        r->generation != connections[x->daddr] || r->session != session)
+        return;
+    r->actual = x->actual_len;
+    r->status = x->result == XFER_RESULT_SUCCESS   ? ERR_SUCCESS
+                : x->result == XFER_RESULT_STALLED ? USB_HOST_STALL
+                : x->result == XFER_RESULT_TIMEOUT ? USB_HOST_TIMEOUT
+                                                   : ERR_USB_TRANSFER;
+    r->state = 2;
+    last_error = r->status;
 }
-
-static bool host_controller_init(void)
+void usb_host_cancel(void)
 {
-    uint16_t attempts;
-
-    R8_USB_CTRL = RB_UC_HOST_MODE;
-    for(attempts = 0u;
-        attempts < USB_HOST_CONTROLLER_START_LOOPS;
-        ++attempts)
+    ++session;
+    for (unsigned i = 0; i < 3; i++)
     {
-        if((R8_USB_CTRL & RB_UC_HOST_MODE) != 0u)
+        request_t *r = &requests[i];
+        if (r->state == 1)
         {
-            break;
+            if (!i)
+                tuh_control_abort_token(r->addr, r->token);
+            else
+                tuh_edpt_abort_xfer(r->addr, r->ep);
         }
+        r->state = 0;
     }
-    if(attempts == USB_HOST_CONTROLLER_START_LOOPS)
-    {
+}
+uint32_t usb_host_session(void) { return session; }
+bool usb_host_interface_alive(const usb_host_interface_t *itf)
+{
+    if (!itf || !itf->device_address || itf->device_address >= 8)
         return false;
-    }
-
-    R8_UHOST_CTRL = 0u;
-    R8_USB_DEV_AD = 0u;
-    R8_UH_EP_MOD = RB_UH_EP_TX_EN | RB_UH_EP_RX_EN;
-    R32_UH_RX_DMA = (uint32_t)pHOST_RX_RAM_Addr;
-    R32_UH_TX_DMA = (uint32_t)pHOST_TX_RAM_Addr;
-    R8_UH_RX_CTRL = 0u;
-    R8_UH_TX_CTRL = 0u;
-    R8_USB_CTRL = RB_UC_HOST_MODE | RB_UC_INT_BUSY | RB_UC_DMA_EN;
-    R8_UH_SETUP = RB_UH_SOF_EN;
-    R8_USB_INT_FG = 0xFFu;
-    DisableRootHubPort();
-    R8_USB_INT_EN = RB_UIE_TRANSFER | RB_UIE_DETECT;
-    FoundNewDev = 0u;
+    usb_host_interface_t *c = lookup(itf->device_address, itf->number);
+    return c && c->generation == itf->generation && mounted[itf->device_address] &&
+           tuh_mounted(itf->device_address);
+}
+bool usb_host_select(const usb_host_interface_t *itf)
+{
+    if (!usb_host_interface_alive(itf))
+        return false;
+    usb_host_cancel();
+    selected = itf->device_address;
     return true;
 }
-
-static void host_set_state(usb_host_state_t state)
+static uint8_t transfer(unsigned slot, uint8_t ep, const uint8_t *setup, uint8_t *data,
+                        uint16_t n, uint16_t *actual)
 {
-    if(s_state != state)
-    {
-        s_state = state;
-        s_state_started_cycles = host_now_cycles();
-        ++s_generation;
-    }
-}
-
-static void host_set_fault(uint8_t fault)
-{
-    if(s_current_fault != fault)
-    {
-        s_current_fault = fault;
-        ++s_generation;
-        ++s_fault_generation;
-    }
-    if(fault != ERR_SUCCESS)
-    {
-        s_last_error = fault;
-    }
-}
-
-static void host_reset_endpoint_toggles(void)
-{
-    memset(s_interrupt_in_toggle, 0, sizeof(s_interrupt_in_toggle));
-    memset(s_interrupt_out_toggle, 0, sizeof(s_interrupt_out_toggle));
-}
-
-static void host_clear_enumeration(void)
-{
-    s_enumerated = 0u;
-    s_vid = 0u;
-    s_pid = 0u;
-    s_device_address = 0u;
-    s_device_speed = 0u;
-    s_device_type = 0u;
-    s_device_class = 0u;
-    s_interrupt_in_endpoint = 0u;
-    s_interrupt_out_endpoint = 0u;
-    s_configuration_value = 0u;
-    s_interface_class = 0u;
-    s_interface_protocol = 0u;
-    s_configuration_length = 0u;
-    memset(s_interfaces, 0, sizeof(s_interfaces));
-    s_interface_count = 0u;
-    s_enum_phase = USB_HOST_ENUM_IDLE;
-    s_enum_phase_started_cycles = host_now_cycles();
-    host_reset_endpoint_toggles();
-}
-
-static void host_handle_disconnect(void)
-{
-    const uint8_t changed = (uint8_t)((s_attached != 0u) ||
-                                      (s_enumerated != 0u));
-    const uint8_t state_was_waiting =
-        (uint8_t)(s_state == USB_HOST_STATE_WAIT_DEVICE);
-
-    DisableRootHubPort();
-    FoundNewDev = 0u;
-    s_attached = 0u;
-    s_enum_attempts = 0u;
-    host_clear_enumeration();
-    host_set_fault(ERR_SUCCESS);
-    host_set_state(USB_HOST_STATE_WAIT_DEVICE);
-    if((changed != 0u) && (state_was_waiting != 0u))
-    {
-        /*
-         * host_set_state() does not increment when an insertion is removed
-         * while already in WAIT_DEVICE; still publish the attachment change.
-         */
-        ++s_generation;
-    }
-}
-
-static void host_begin_attachment(void)
-{
-    if(s_attached == 0u)
-    {
-        s_attached = 1u;
-        s_enum_attempts = 0u;
-        host_clear_enumeration();
-        host_set_fault(ERR_SUCCESS);
-        ++s_generation;
-    }
-    host_set_state(USB_HOST_STATE_ATTACH_DEBOUNCE);
-}
-
-static uint8_t host_poll_port(void)
-{
-    uint8_t status;
-
-    if((R8_USB_INT_FG & RB_UIF_DETECT) != 0u)
-    {
-        R8_USB_INT_FG = RB_UIF_DETECT;
-    }
-    status = AnalyzeRootHub();
-    if(FoundNewDev != 0u)
-    {
-        FoundNewDev = 0u;
-        if(status == ERR_SUCCESS)
-        {
-            status = ERR_USB_CONNECT;
-        }
-    }
-    return status;
-}
-
-static void host_schedule_recovery(uint8_t error)
-{
-    if(error!=ERR_USB_DISCON && error!=ERR_USB_CONNECT)
-        XoraLog_Event(FL_EVENT_USB,FL_CATEGORY_LINK,FL_ERROR,error);
-    DisableRootHubPort();
-    host_clear_enumeration();
-    host_set_fault(error);
-    if(s_enum_attempts < USB_HOST_MAX_ENUM_ATTEMPTS)
-    {
-        host_set_state(USB_HOST_STATE_RECOVERY_WAIT);
-    }
-    else
-    {
-        host_set_state(USB_HOST_STATE_FAILED);
-    }
-}
-
-static uint8_t host_control_raw(const uint8_t setup[8],
-                                uint8_t *data,
-                                uint8_t *transferred)
-{
-    uint16_t request_length;
-    uint8_t status;
-    uint8_t actual = 0u;
-
-    if(transferred != 0)
-    {
-        *transferred = 0u;
-    }
-    if((setup == 0) || (s_transfer_busy != 0u))
-    {
-        return ERR_USB_TRANSFER;
-    }
-
-    request_length = (uint16_t)setup[6] |
-                     ((uint16_t)setup[7] << 8);
-    if((request_length > USB_HOST_CONTROL_MAX_BYTES) ||
-       ((request_length != 0u) && (data == 0)))
-    {
+    request_t *r = &requests[slot];
+    uint8_t *buffer = slot ? interrupt_data[slot - 1] : control_data;
+    if (actual)
+        *actual = 0;
+    if (n > (slot ? 64 : 512) || (n && !data))
         return ERR_USB_BUF_OVER;
-    }
-
-    s_transfer_busy = 1u;
-    memcpy(pHOST_TX_RAM_Addr, setup, 8u);
-    status = HostCtrlTransfer(data,
-                              (transferred != 0) ? &actual : 0);
-    s_transfer_busy = 0u;
-    if(transferred != 0)
+    if (!selected || !tuh_mounted(selected))
+        return ERR_USB_DISCON;
+    if (r->state)
     {
-        *transferred = actual;
-    }
-    return status;
-}
-
-static uint8_t host_control_descriptor_raw(uint8_t *data,
-                                           uint16_t *transferred)
-{
-    uint16_t remaining;
-    uint8_t status;
-    uint8_t received;
-    uint8_t count;
-    uint8_t direction_in;
-    uint8_t *cursor = data;
-
-    if(transferred != 0)
-    {
-        *transferred = 0u;
-    }
-
-    direction_in =
-        (uint8_t)((pSetupReq->bRequestType & USB_REQ_TYP_IN) != 0u);
-    remaining = pSetupReq->wLength;
-
-    mDelayuS(200u);
-    R8_UH_TX_LEN = sizeof(USB_SETUP_REQ);
-    status = USBHostTransact((uint8_t)(USB_PID_SETUP << 4),
-                             0x00u,
-                             200000u / 20u);
-    if(status != ERR_SUCCESS)
-    {
+        if (r->ep != ep || (!slot && memcmp(&control_setup, setup, 8)))
+            return USB_HOST_PENDING;
+        if (r->state == 1)
+        {
+            if (r->queued)
+                return USB_HOST_PENDING;
+            goto submit;
+        }
+        if (actual)
+            *actual = r->actual;
+        if ((slot ? ep & 0x80 : setup[0] & 0x80) && r->actual && r->actual <= n)
+            memcpy(data, buffer, r->actual);
+        uint8_t status = r->status;
+        r->state = 0;
         return status;
     }
-
-    R8_UH_RX_CTRL = RB_UH_R_TOG | RB_UH_R_AUTO_TOG;
-    R8_UH_TX_CTRL = RB_UH_T_TOG | RB_UH_T_AUTO_TOG;
-    R8_UH_TX_LEN = 0x01u;
-
-    if((remaining != 0u) && (cursor != 0))
+    r->addr = selected;
+    r->ep = ep;
+    r->token = ++sequence;
+    r->generation = connections[selected];
+    r->session = session;
+    r->started = tusb_time_millis_api();
+    r->length = n;
+    r->state = 1;
+    r->queued = 0;
+    if (n)
+        memcpy(buffer, data, n);
+submit:;
+    tuh_xfer_t x = {.daddr = selected,
+                    .ep_addr = ep,
+                    .buffer = buffer,
+                    .complete_cb = complete,
+                    .user_data = r->token};
+    bool ok;
+    if (!slot)
     {
-        if(direction_in != 0u)
-        {
-            while(remaining != 0u)
-            {
-                mDelayuS(200u);
-                status = USBHostTransact((uint8_t)(USB_PID_IN << 4),
-                                         R8_UH_RX_CTRL,
-                                         200000u / 20u);
-                if(status != ERR_SUCCESS)
-                {
-                    return status;
-                }
-
-                received = (R8_USB_RX_LEN < remaining) ?
-                           R8_USB_RX_LEN : (uint8_t)remaining;
-                remaining = (uint16_t)(remaining - received);
-                if(transferred != 0)
-                {
-                    *transferred = (uint16_t)(*transferred + received);
-                }
-                for(count = 0u; count < received; ++count)
-                {
-                    *cursor++ = pHOST_RX_RAM_Addr[count];
-                }
-                if((R8_USB_RX_LEN == 0u) ||
-                   ((R8_USB_RX_LEN & (UsbDevEndp0Size - 1u)) != 0u))
-                {
-                    break;
-                }
-            }
-            R8_UH_TX_LEN = 0x00u;
-        }
-        else
-        {
-            while(remaining != 0u)
-            {
-                mDelayuS(200u);
-                R8_UH_TX_LEN =
-                    (remaining >= UsbDevEndp0Size) ?
-                    UsbDevEndp0Size : (uint8_t)remaining;
-                for(count = 0u; count < R8_UH_TX_LEN; ++count)
-                {
-                    pHOST_TX_RAM_Addr[count] = *cursor++;
-                }
-                status = USBHostTransact((uint8_t)(USB_PID_OUT << 4),
-                                         R8_UH_TX_CTRL,
-                                         200000u / 20u);
-                if(status != ERR_SUCCESS)
-                {
-                    return status;
-                }
-                remaining = (uint16_t)(remaining - R8_UH_TX_LEN);
-                if(transferred != 0)
-                {
-                    *transferred =
-                        (uint16_t)(*transferred + R8_UH_TX_LEN);
-                }
-            }
-        }
-    }
-
-    mDelayuS(200u);
-    status = USBHostTransact(
-        (uint8_t)(R8_UH_TX_LEN != 0u ?
-                  (USB_PID_IN << 4) : (USB_PID_OUT << 4)),
-        RB_UH_R_TOG | RB_UH_T_TOG,
-        200000u / 20u);
-    if(status != ERR_SUCCESS)
-    {
-        return status;
-    }
-    if((R8_UH_TX_LEN == 0u) || (R8_USB_RX_LEN == 0u))
-    {
-        return ERR_SUCCESS;
-    }
-    return ERR_USB_BUF_OVER;
-}
-
-static void host_enum_fail(uint8_t status)
-{
-    if(status == ERR_USB_DISCON)
-    {
-        host_handle_disconnect();
+        memcpy(&control_setup, setup, 8);
+        x.setup = &control_setup;
+        ok = tuh_control_xfer(&x);
     }
     else
     {
-        host_schedule_recovery(status);
+        x.buflen = n;
+        ok = tuh_edpt_xfer(&x);
     }
+    r->queued = ok;
+    return USB_HOST_PENDING;
 }
-
-static void host_begin_enumeration(void)
+uint8_t usb_host_control_transfer(const uint8_t s[8], uint8_t *d, uint16_t n, uint16_t *a)
 {
-    ++s_enum_attempts;
-    host_clear_enumeration();
-    host_set_state(USB_HOST_STATE_ENUMERATING);
-
-    UsbDevEndp0Size = DEFAULT_ENDP0_SIZE;
-    SetHostUsbAddr(0u);
-    R8_UHOST_CTRL &= (uint8_t)~RB_UH_PORT_EN;
-    SetUsbSpeed(1u);
-    R8_UHOST_CTRL =
-        (uint8_t)((R8_UHOST_CTRL & (uint8_t)~RB_UH_LOW_SPEED) |
-                  RB_UH_BUS_RESET);
-    s_enum_phase = USB_HOST_ENUM_RESET_ASSERTED;
-    s_enum_phase_started_cycles = host_now_cycles();
+    uint16_t len = s[6] | ((uint16_t)s[7] << 8);
+    if (len > n)
+        return ERR_USB_BUF_OVER;
+    return transfer(0, 0, s, d, len, a);
 }
-
-static bool host_parse_configuration(uint16_t length)
+uint8_t usb_host_control_transfer_descriptor(const uint8_t s[8], uint8_t *d, uint16_t n,
+                                             uint16_t *a)
 {
-    uint16_t offset = 0u;
-    usb_host_interface_t *current = 0;
-
-    s_interface_class = 0u;
-    s_interface_protocol = 0u;
-    s_interrupt_in_endpoint = 0u;
-    s_interrupt_out_endpoint = 0u;
-    memset(s_interfaces, 0, sizeof(s_interfaces));
-    s_interface_count = 0u;
-    memset(ThisUsbDev.GpVar, 0, sizeof(ThisUsbDev.GpVar));
-
-    while((uint16_t)(offset + 2u) <= length)
+    return usb_host_control_transfer(s, d, n, a);
+}
+uint8_t usb_host_interrupt_in(uint8_t ep, uint8_t *d, uint16_t n, uint16_t *a, uint16_t unused)
+{
+    (void)unused;
+    return transfer(1, ep, NULL, d, n, a);
+}
+uint8_t usb_host_interrupt_out(uint8_t ep, const uint8_t *d, uint16_t n, uint16_t unused)
+{
+    (void)unused;
+    return transfer(2, ep, NULL, (uint8_t *)d, n, NULL);
+}
+void tuh_enum_descriptor_device_cb(uint8_t a, const tusb_desc_device_t *d)
+{
+    (void)d;
+    connections[a] = ++next_connection;
+    mounted[a] = 0;
+    ++enum_attempts;
+}
+bool tuh_enum_descriptor_configuration_cb(uint8_t a, uint8_t index,
+                                          const tusb_desc_configuration_t *cfg)
+{
+    (void)index;
+    usb_host_interface_t *itf = NULL;
+    remove_interfaces(a);
+    const uint8_t *p = (const uint8_t *)cfg, *end = p + tu_le16toh(cfg->wTotalLength);
+    while (p + 2 <= end && p[0] >= 2 && p + p[0] <= end)
     {
-        const uint8_t descriptor_length = s_config_descriptor[offset];
-        const uint8_t descriptor_type = s_config_descriptor[offset + 1u];
-
-        if((descriptor_length < 2u) ||
-           ((uint16_t)(offset + descriptor_length) > length))
+        if (p[1] == TUSB_DESC_INTERFACE && p[0] >= 9)
         {
-            return false;
-        }
-
-        if((descriptor_type == USB_DESCR_TYP_INTERF) &&
-           (descriptor_length >= 9u))
-        {
-            if(s_interface_count >= USB_HOST_MAX_INTERFACES)
+            itf = NULL;
+            if (p[3] == 0 && (p[5] == TUSB_CLASS_HID || p[5] == 0xff))
             {
-                return false;
-            }
-            current = &s_interfaces[s_interface_count++];
-            current->number = s_config_descriptor[offset + 2u];
-            current->alternate_setting = s_config_descriptor[offset + 3u];
-            current->class_code = s_config_descriptor[offset + 5u];
-            current->subclass = s_config_descriptor[offset + 6u];
-            current->protocol = s_config_descriptor[offset + 7u];
-            if(s_interface_count == 1u)
-            {
-                s_interface_class = current->class_code;
-                s_interface_protocol = current->protocol;
-            }
-        }
-        else if((descriptor_type == USB_DESCR_TYP_ENDP) &&
-                 (descriptor_length >= 7u) &&
-                 (current != 0))
-        {
-            const uint8_t address = s_config_descriptor[offset + 2u];
-            const uint8_t attributes =
-                (uint8_t)(s_config_descriptor[offset + 3u] &
-                          USB_ENDP_TYPE_MASK);
-            const uint16_t max_packet =
-                (uint16_t)s_config_descriptor[offset + 4u] |
-                ((uint16_t)s_config_descriptor[offset + 5u] << 8);
-
-            if((attributes == USB_ENDP_TYPE_INTER) &&
-               (max_packet != 0u) &&
-               (max_packet <= USB_HOST_INTERRUPT_MAX_BYTES))
-            {
-                if(((address & USB_ENDP_DIR_MASK) != 0u) &&
-                   (current->interrupt_in_endpoint == 0u))
-                {
-                    current->interrupt_in_endpoint = address;
-                    current->interrupt_in_max_packet = max_packet;
-                    if(s_interrupt_in_endpoint == 0u)
+                for (unsigned i = 0; i < USB_HOST_MAX_INTERFACES; i++)
+                    if (!interfaces[i].device_address)
                     {
-                        s_interrupt_in_endpoint = address;
-                        ThisUsbDev.GpVar[0] =
-                            (uint8_t)(address & USB_ENDP_ADDR_MASK);
+                        itf = &interfaces[i];
+                        memset(itf, 0, sizeof(*itf));
+                        itf->device_address = a;
+                        itf->generation = connections[a];
+                        itf->number = p[2];
+                        itf->class_code = p[5];
+                        itf->subclass = p[6];
+                        itf->protocol = p[7];
+                        break;
                     }
-                }
-                else if(((address & USB_ENDP_DIR_MASK) == 0u) &&
-                        (current->interrupt_out_endpoint == 0u))
-                {
-                    current->interrupt_out_endpoint = address;
-                    current->interrupt_out_max_packet = max_packet;
-                    if(s_interrupt_out_endpoint == 0u)
-                    {
-                        s_interrupt_out_endpoint = address;
-                        ThisUsbDev.GpVar[2] =
-                            (uint8_t)(address & USB_ENDP_ADDR_MASK);
-                    }
-                }
             }
         }
-        else if((descriptor_type == 0x21u) &&
-                (descriptor_length >= 9u) &&
-                (current != 0) &&
-                (current->class_code == USB_DEV_CLASS_HID))
+        else if (itf && p[1] == HID_DESC_TYPE_HID && p[0] >= 9)
+            itf->hid_report_descriptor_length = p[7] | ((uint16_t)p[8] << 8);
+        else if (itf && p[1] == TUSB_DESC_ENDPOINT && p[0] >= 7 &&
+                 (p[3] & 3) == TUSB_XFER_INTERRUPT)
         {
-            current->hid_report_descriptor_length =
-                (uint16_t)s_config_descriptor[offset + 7u] |
-                ((uint16_t)s_config_descriptor[offset + 8u] << 8);
+            if (p[2] & 0x80)
+            {
+                itf->interrupt_in_endpoint = p[2];
+                itf->interrupt_in_max_packet = p[4] | ((uint16_t)p[5] << 8);
+            }
+            else
+            {
+                itf->interrupt_out_endpoint = p[2];
+                itf->interrupt_out_max_packet = p[4] | ((uint16_t)p[5] << 8);
+            }
         }
-
-        offset = (uint16_t)(offset + descriptor_length);
-    }
-
-    if(s_device_class == USB_DEV_CLASS_HUB)
-    {
-        /* Downstream hubs are intentionally outside this bounded root path. */
-        return false;
-    }
-
-    if(s_interface_count == 0u)
-    {
-        return false;
-    }
-    if(s_device_class != 0u)
-    {
-        s_device_type = s_device_class;
-    }
-    else if(s_interface_class == USB_DEV_CLASS_HID)
-    {
-        if(s_interface_protocol == 1u)
-        {
-            s_device_type = DEV_TYPE_KEYBOARD;
-        }
-        else if(s_interface_protocol == 2u)
-        {
-            s_device_type = DEV_TYPE_MOUSE;
-        }
-        else
-        {
-            s_device_type = USB_DEV_CLASS_HID;
-        }
-    }
-    else if(s_interface_class != 0u)
-    {
-        s_device_type = s_interface_class;
-    }
-    else
-    {
-        s_device_type = DEV_TYPE_UNKNOW;
+        p += p[0];
     }
     return true;
 }
-
-static void host_complete_enumeration(void)
+void tuh_hid_mount_cb(uint8_t a, uint8_t instance, const uint8_t *report, uint16_t len)
 {
-    if(s_enum_attempts>1u) XoraLog_Event(FL_EVENT_RECOVERED,FL_CATEGORY_RECOVERY,FL_WARN,FL_EVENT_USB);
-    ThisUsbDev.DeviceStatus = ROOT_DEV_SUCCESS;
-    ThisUsbDev.DeviceAddress = s_device_address;
-    ThisUsbDev.DeviceSpeed = s_device_speed;
-    ThisUsbDev.DeviceType = s_device_type;
-    ThisUsbDev.DeviceVID = s_vid;
-    ThisUsbDev.DevicePID = s_pid;
-    s_enumerated = 1u;
-    s_enum_phase = USB_HOST_ENUM_IDLE;
-    host_reset_endpoint_toggles();
-    host_set_fault(ERR_SUCCESS);
-    host_set_state(USB_HOST_STATE_READY);
+    tuh_itf_info_t info;
+    if (!tuh_hid_itf_get_info(a, instance, &info))
+        return;
+    usb_host_interface_t *itf = lookup(a, info.desc.bInterfaceNumber);
+    if (!itf)
+        return;
+    itf->hid_instance = instance;
+    itf->ps_auth = 0;
+    tuh_hid_report_info_t reports[32];
+    uint8_t n = report ? tuh_hid_parse_report_descriptor(reports, 32, report, len) : 0;
+    for (unsigned i = 0; i < n; i++)
+        if (reports[i].usage_page == 0xfff0 && reports[i].report_id == 0xf3)
+            itf->ps_auth = 1;
 }
-
-static void host_continue_enumeration(void)
+void tuh_hid_umount_cb(uint8_t a, uint8_t i)
 {
-    static const uint8_t get_device_descriptor[8] = {
-        0x80u, USB_GET_DESCRIPTOR, 0x00u, USB_DESCR_TYP_DEVICE,
-        0x00u, 0x00u, USB_HOST_DEVICE_DESCRIPTOR_BYTES, 0x00u
-    };
-    static const uint8_t set_address[8] = {
-        0x00u, USB_SET_ADDRESS, USB_HOST_DEVICE_ADDRESS, 0x00u,
-        0x00u, 0x00u, 0x00u, 0x00u
-    };
-    uint8_t setup[8];
-    uint8_t status;
-    uint8_t actual = 0u;
-
-    switch(s_enum_phase)
-    {
-    case USB_HOST_ENUM_RESET_ASSERTED:
-        if(!host_elapsed_ms(s_enum_phase_started_cycles,
-                            USB_HOST_BUS_RESET_MS))
-        {
-            return;
-        }
-        R8_UHOST_CTRL &= (uint8_t)~RB_UH_BUS_RESET;
-        R8_USB_INT_FG = RB_UIF_DETECT;
-        s_enum_phase = USB_HOST_ENUM_RESET_SETTLE;
-        s_enum_phase_started_cycles = host_now_cycles();
-        return;
-
-    case USB_HOST_ENUM_RESET_SETTLE:
-        if(!host_elapsed_ms(s_enum_phase_started_cycles,
-                            USB_HOST_RESET_SETTLE_MS))
-        {
-            return;
-        }
-        status = EnableRootHubPort();
-        if(status != ERR_SUCCESS)
-        {
-            host_enum_fail(status);
-            return;
-        }
-        s_device_speed = ThisUsbDev.DeviceSpeed;
-        SetUsbSpeed(s_device_speed);
-        s_enum_phase = USB_HOST_ENUM_GET_DEVICE;
-        return;
-
-    case USB_HOST_ENUM_GET_DEVICE:
-        status = host_control_raw(get_device_descriptor,
-                                  s_config_descriptor,
-                                  &actual);
-        if(status != ERR_SUCCESS)
-        {
-            host_enum_fail(status);
-            return;
-        }
-        if((actual < USB_HOST_DEVICE_DESCRIPTOR_BYTES) ||
-           (s_config_descriptor[0] < USB_HOST_DEVICE_DESCRIPTOR_BYTES) ||
-           (s_config_descriptor[1] != USB_DESCR_TYP_DEVICE))
-        {
-            host_enum_fail(ERR_USB_BUF_OVER);
-            return;
-        }
-        UsbDevEndp0Size = s_config_descriptor[7];
-        if((UsbDevEndp0Size != 8u) &&
-           (UsbDevEndp0Size != 16u) &&
-           (UsbDevEndp0Size != 32u) &&
-           (UsbDevEndp0Size != 64u))
-        {
-            host_enum_fail(ERR_USB_UNSUPPORT);
-            return;
-        }
-        s_device_class = s_config_descriptor[4];
-        s_vid = (uint16_t)s_config_descriptor[8] |
-                ((uint16_t)s_config_descriptor[9] << 8);
-        s_pid = (uint16_t)s_config_descriptor[10] |
-                ((uint16_t)s_config_descriptor[11] << 8);
-        s_enum_phase = USB_HOST_ENUM_SET_ADDRESS;
-        return;
-
-    case USB_HOST_ENUM_SET_ADDRESS:
-        status = host_control_raw(set_address, 0, 0);
-        if(status != ERR_SUCCESS)
-        {
-            host_enum_fail(status);
-            return;
-        }
-        s_device_address = USB_HOST_DEVICE_ADDRESS;
-        SetHostUsbAddr(s_device_address);
-        s_enum_phase = USB_HOST_ENUM_ADDRESS_SETTLE;
-        s_enum_phase_started_cycles = host_now_cycles();
-        return;
-
-    case USB_HOST_ENUM_ADDRESS_SETTLE:
-        if(!host_elapsed_ms(s_enum_phase_started_cycles,
-                            USB_HOST_ADDRESS_SETTLE_MS))
-        {
-            return;
-        }
-        s_enum_phase = USB_HOST_ENUM_GET_CONFIG_HEADER;
-        return;
-
-    case USB_HOST_ENUM_GET_CONFIG_HEADER:
-        setup[0] = 0x80u;
-        setup[1] = USB_GET_DESCRIPTOR;
-        setup[2] = 0x00u;
-        setup[3] = USB_DESCR_TYP_CONFIG;
-        setup[4] = 0x00u;
-        setup[5] = 0x00u;
-        setup[6] = USB_HOST_CONFIG_HEADER_BYTES;
-        setup[7] = 0x00u;
-        status = host_control_raw(setup, s_config_descriptor, &actual);
-        if(status != ERR_SUCCESS)
-        {
-            host_enum_fail(status);
-            return;
-        }
-        if((actual < USB_HOST_CONFIG_HEADER_BYTES) ||
-           (s_config_descriptor[0] < USB_HOST_CONFIG_HEADER_BYTES) ||
-           (s_config_descriptor[1] != USB_DESCR_TYP_CONFIG))
-        {
-            host_enum_fail(ERR_USB_BUF_OVER);
-            return;
-        }
-        s_configuration_length =
-            (uint16_t)s_config_descriptor[2] |
-            ((uint16_t)s_config_descriptor[3] << 8);
-        s_configuration_value = s_config_descriptor[5];
-        if((s_configuration_length < USB_HOST_CONFIG_HEADER_BYTES) ||
-           (s_configuration_length > USB_HOST_CONTROL_MAX_BYTES) ||
-           (s_configuration_value == 0u))
-        {
-            host_enum_fail(ERR_USB_UNSUPPORT);
-            return;
-        }
-        s_enum_phase = USB_HOST_ENUM_GET_CONFIG_FULL;
-        return;
-
-    case USB_HOST_ENUM_GET_CONFIG_FULL:
-        setup[0] = 0x80u;
-        setup[1] = USB_GET_DESCRIPTOR;
-        setup[2] = 0x00u;
-        setup[3] = USB_DESCR_TYP_CONFIG;
-        setup[4] = 0x00u;
-        setup[5] = 0x00u;
-        setup[6] = (uint8_t)s_configuration_length;
-        setup[7] = (uint8_t)(s_configuration_length >> 8);
-        status = host_control_raw(setup, s_config_descriptor, &actual);
-        if(status != ERR_SUCCESS)
-        {
-            host_enum_fail(status);
-            return;
-        }
-        if((actual != (uint8_t)s_configuration_length) ||
-           !host_parse_configuration(s_configuration_length))
-        {
-            host_enum_fail(ERR_USB_UNSUPPORT);
-            return;
-        }
-        s_enum_phase = USB_HOST_ENUM_SET_CONFIG;
-        return;
-
-    case USB_HOST_ENUM_SET_CONFIG:
-        setup[0] = 0x00u;
-        setup[1] = USB_SET_CONFIGURATION;
-        setup[2] = s_configuration_value;
-        setup[3] = 0x00u;
-        setup[4] = 0x00u;
-        setup[5] = 0x00u;
-        setup[6] = 0x00u;
-        setup[7] = 0x00u;
-        status = host_control_raw(setup, 0, 0);
-        if(status != ERR_SUCCESS)
-        {
-            host_enum_fail(status);
-            return;
-        }
-        host_complete_enumeration();
-        return;
-
-    case USB_HOST_ENUM_IDLE:
-    default:
-        host_enum_fail(ERR_USB_UNKNOWN);
-        return;
-    }
+    (void)a;
+    (void)i;
 }
-
-static uint8_t host_prepare_transfer(void)
+void tuh_hid_report_received_cb(uint8_t a, uint8_t i, const uint8_t *r, uint16_t n)
 {
-    if((s_ready == 0u) || (s_enumerated == 0u) ||
-       (s_state != USB_HOST_STATE_READY))
-    {
-        return ERR_USB_DISCON;
-    }
-    if(s_transfer_busy != 0u)
-    {
-        return ERR_USB_TRANSFER;
-    }
-
-    s_transfer_busy = 1u;
-    SetHostUsbAddr(s_device_address);
-    SetUsbSpeed(s_device_speed);
-    return ERR_SUCCESS;
+    (void)a;
+    (void)i;
+    (void)r;
+    (void)n;
 }
-
-static uint16_t host_clamp_retry(uint16_t retry_20us)
+void tuh_mount_cb(uint8_t a)
 {
-    return (retry_20us > USB_HOST_MAX_NAK_RETRY_20US)
-        ? USB_HOST_MAX_NAK_RETRY_20US
-        : retry_20us;
+    mounted[a] = 1;
+    ++next_connection;
 }
-
-static void host_finish_transfer(uint8_t status)
+void tuh_umount_cb(uint8_t a)
 {
-    s_transfer_busy = 0u;
-    SetUsbSpeed(1u);
-
-    if(status == ERR_USB_DISCON)
+    mounted[a] = 0;
+    if (selected == a)
     {
-        host_handle_disconnect();
+        usb_host_cancel();
+        selected = 0;
     }
-    else if(status == ERR_SUCCESS)
-    {
-        host_set_fault(ERR_SUCCESS);
-    }
-    else if((status != ERR_SUCCESS) &&
-            (status != (uint8_t)(USB_PID_NAK | ERR_USB_TRANSFER)))
-    {
-        host_set_fault(status);
-    }
+    connections[a] = ++next_connection;
+    remove_interfaces(a);
 }
-
+static bool vendor_init(void) { return true; }
+static uint16_t vendor_open(uint8_t port, uint8_t a, const tusb_desc_interface_t *desc,
+                            uint16_t len)
+{
+    (void)port;
+    if (desc->bInterfaceClass != 0xff ||
+        !((desc->bInterfaceSubClass == 0x5d && desc->bInterfaceProtocol == 1) ||
+          (desc->bInterfaceSubClass == 0x47 && desc->bInterfaceProtocol == 0xd0)))
+        return 0;
+    const uint8_t *start = (const uint8_t *)desc, *p = start + desc->bLength,
+                  *end = start + len;
+    while (p + 2 <= end && p[0] >= 2 && p + p[0] <= end && p[1] != TUSB_DESC_INTERFACE)
+    {
+        if (p[1] == TUSB_DESC_ENDPOINT && !tuh_edpt_open(a, (const tusb_desc_endpoint_t *)p))
+            return 0;
+        p += p[0];
+    }
+    return p - start;
+}
+static bool vendor_config(uint8_t a, uint8_t i)
+{
+    usbh_driver_set_config_complete(a, i);
+    return true;
+}
+static bool vendor_xfer(uint8_t a, uint8_t e, xfer_result_t r, uint32_t n)
+{
+    (void)a;
+    (void)e;
+    (void)r;
+    (void)n;
+    return true;
+}
+static void vendor_close(uint8_t a) { (void)a; }
+const usbh_class_driver_t *usbh_app_driver_get_cb(uint8_t *count)
+{
+    static const usbh_class_driver_t driver = {.name = "XORA Xbox",
+                                               .init = vendor_init,
+                                               .deinit = vendor_init,
+                                               .open = vendor_open,
+                                               .set_config = vendor_config,
+                                               .xfer_cb = vendor_xfer,
+                                               .close = vendor_close};
+    *count = 1;
+    return &driver;
+}
 bool usb_host_init(void)
 {
-    memset(s_host_rx_dma, 0, sizeof(s_host_rx_dma));
-    memset(s_host_tx_dma, 0, sizeof(s_host_tx_dma));
-    host_start_monotonic_clock();
-
-    pHOST_RX_RAM_Addr = s_host_rx_dma;
-    pHOST_TX_RAM_Addr = s_host_tx_dma;
-
-    s_state = USB_HOST_STATE_OFF;
-    s_ready = 0u;
-    s_attached = 0u;
-    s_enumerated = 0u;
-    s_enum_attempts = 0u;
-    s_current_fault = ERR_SUCCESS;
-    s_last_error = ERR_SUCCESS;
-    s_transfer_busy = 0u;
-    s_vid = 0u;
-    s_pid = 0u;
-    s_device_address = 0u;
-    s_device_speed = 0u;
-    s_device_type = 0u;
-    s_device_class = 0u;
-    s_interrupt_in_endpoint = 0u;
-    s_interrupt_out_endpoint = 0u;
-    s_configuration_value = 0u;
-    s_interface_class = 0u;
-    s_interface_protocol = 0u;
-    s_configuration_length = 0u;
-    memset(s_interfaces, 0, sizeof(s_interfaces));
-    s_interface_count = 0u;
-    s_enum_phase = USB_HOST_ENUM_IDLE;
-    s_enum_phase_started_cycles = host_now_cycles();
-    s_generation = 0u;
-    s_fault_generation = 0u;
-    s_state_started_cycles = host_now_cycles();
-    host_reset_endpoint_toggles();
-
-    if(!host_controller_init())
-    {
-        host_set_fault(ERR_USB_UNKNOWN);
-        host_set_state(USB_HOST_STATE_FAILED);
-        return false;
-    }
-    s_ready = 1u;
-    host_set_state(USB_HOST_STATE_WAIT_DEVICE);
-    return true;
+    if (ready)
+        return true;
+    const tusb_rhport_init_t init = {.role = TUSB_ROLE_HOST, .speed = TUSB_SPEED_FULL};
+    ready = tusb_init(0, &init);
+    return ready != 0;
 }
-
 void usb_host_shutdown(void)
 {
-    R8_USB_INT_EN = 0u;
-    R8_UH_SETUP = 0u;
-    DisableRootHubPort();
-    R8_UHOST_CTRL = 0u;
-    s_ready = 0u;
-    s_attached = 0u;
-    s_transfer_busy = 0u;
-    host_clear_enumeration();
-    host_set_fault(ERR_SUCCESS);
-    host_set_state(USB_HOST_STATE_OFF);
+    usb_host_cancel();
+    tuh_deinit(0);
+    ready = 0;
 }
-
 void usb_host_process(void)
 {
-    uint8_t port_status;
-    uint32_t recovery_ms;
-
-    if(s_ready == 0u)
-    {
+    if (!ready)
         return;
-    }
-
-    port_status = host_poll_port();
-    if(port_status == ERR_USB_DISCON)
+    hcd_ch585_poll();
+    tuh_task_ext(0, false);
+    uint32_t now = tusb_time_millis_api();
+    clock_snapshot = now;
+    for (unsigned i = 0; i < 3; i++)
     {
-        host_handle_disconnect();
-        return;
-    }
-    if((port_status == ERR_USB_CONNECT) && (s_attached == 0u))
-    {
-        host_begin_attachment();
-    }
-
-    switch(s_state)
-    {
-    case USB_HOST_STATE_WAIT_DEVICE:
-        if(port_status == ERR_USB_CONNECT)
+        request_t *r = &requests[i];
+        if (r->state == 1 && now - r->started >= 500)
         {
-            host_begin_attachment();
+            if (!i)
+                tuh_control_abort_token(r->addr, r->token);
+            else
+                tuh_edpt_abort_xfer(r->addr, r->ep);
+            last_error = USB_HOST_TIMEOUT;
+            r->status = USB_HOST_TIMEOUT;
+            r->actual = 0;
+            r->state = 2;
         }
-        break;
-
-    case USB_HOST_STATE_ATTACH_DEBOUNCE:
-        if(host_elapsed_ms(s_state_started_cycles,
-                           USB_HOST_ATTACH_DEBOUNCE_MS))
-        {
-            host_begin_enumeration();
-        }
-        break;
-
-    case USB_HOST_STATE_RECOVERY_WAIT:
-        recovery_ms = USB_HOST_RECOVERY_BASE_MS *
-                      (uint32_t)s_enum_attempts;
-        if(host_elapsed_ms(s_state_started_cycles, recovery_ms))
-        {
-            host_begin_enumeration();
-        }
-        break;
-
-    case USB_HOST_STATE_ENUMERATING:
-        host_continue_enumeration();
-        break;
-
-    case USB_HOST_STATE_READY:
-    case USB_HOST_STATE_FAILED:
-    case USB_HOST_STATE_OFF:
-    default:
-        break;
     }
 }
-
-bool usb_host_is_ready(void)
-{
-    return s_ready != 0u;
-}
-
-bool usb_host_is_attached(void)
-{
-    return s_attached != 0u;
-}
-
+bool usb_host_is_ready(void) { return ready != 0; }
+bool usb_host_is_attached(void) { return ready && (R8_USB_MIS_ST & RB_UMS_DEV_ATTACH); }
 bool usb_host_is_enumerated(void)
 {
-    return s_enumerated != 0u;
+    for (uint8_t a = 1; a <= 6; a++)
+        if (mounted[a] && tuh_mounted(a))
+            return true;
+    return false;
 }
-
-uint8_t usb_host_last_fault(void)
-{
-    return s_current_fault;
-}
-
-uint8_t usb_host_last_error(void)
-{
-    return s_last_error;
-}
-
+uint8_t usb_host_last_fault(void) { return fault; }
+uint8_t usb_host_last_error(void) { return last_error; }
 usb_host_state_t usb_host_state(void)
 {
-    return s_state;
+    return !ready                     ? USB_HOST_STATE_OFF
+           : usb_host_is_enumerated() ? USB_HOST_STATE_READY
+           : usb_host_is_attached()   ? USB_HOST_STATE_ENUMERATING
+                                      : USB_HOST_STATE_WAIT_DEVICE;
 }
-
-uint32_t usb_host_generation(void)
+uint32_t usb_host_generation(void) { return next_connection; }
+uint32_t usb_host_fault_generation(void) { return fault_generation; }
+uint8_t usb_host_interface_count(void) { return USB_HOST_MAX_INTERFACES; }
+bool usb_host_get_interface(uint8_t i, usb_host_interface_t *out)
 {
-    return s_generation;
-}
-
-uint32_t usb_host_fault_generation(void)
-{
-    return s_fault_generation;
-}
-
-bool usb_host_get_snapshot(usb_host_snapshot_t *snapshot)
-{
-    if(snapshot == 0)
-    {
+    if (i >= USB_HOST_MAX_INTERFACES || !out || !interfaces[i].device_address)
         return false;
-    }
-
-    snapshot->state = s_state;
-    snapshot->controller_ready = s_ready;
-    snapshot->attached = s_attached;
-    snapshot->enumerated = s_enumerated;
-    snapshot->enumeration_attempts = s_enum_attempts;
-    snapshot->current_fault = s_current_fault;
-    snapshot->last_error = s_last_error;
-    snapshot->device_address = s_device_address;
-    snapshot->device_speed = s_device_speed;
-    snapshot->device_type = s_device_type;
-    snapshot->interrupt_in_endpoint = s_interrupt_in_endpoint;
-    snapshot->interrupt_out_endpoint = s_interrupt_out_endpoint;
-    snapshot->vid = s_vid;
-    snapshot->pid = s_pid;
-    snapshot->generation = s_generation;
-    snapshot->fault_generation = s_fault_generation;
-    return true;
+    *out = interfaces[i];
+    return usb_host_interface_alive(out);
 }
-
-uint8_t usb_host_interface_count(void)
+bool usb_host_find_interface(uint8_t cls, uint8_t sub, uint8_t proto, usb_host_interface_t *out)
 {
-    return s_interface_count;
-}
-
-bool usb_host_get_interface(uint8_t index,
-                            usb_host_interface_t *interface_info)
-{
-    if((interface_info == 0) || (index >= s_interface_count))
-    {
-        return false;
-    }
-    *interface_info = s_interfaces[index];
-    return true;
-}
-
-static bool host_interface_field_matches(uint8_t expected, uint8_t actual)
-{
-    return (expected == USB_HOST_INTERFACE_ANY) || (expected == actual);
-}
-
-bool usb_host_find_interface(uint8_t class_code,
-                             uint8_t subclass,
-                             uint8_t protocol,
-                             usb_host_interface_t *interface_info)
-{
-    uint8_t index;
-
-    if(interface_info == 0)
-    {
-        return false;
-    }
-    for(index = 0u; index < s_interface_count; ++index)
-    {
-        const usb_host_interface_t *candidate = &s_interfaces[index];
-        if(host_interface_field_matches(class_code, candidate->class_code) &&
-           host_interface_field_matches(subclass, candidate->subclass) &&
-           host_interface_field_matches(protocol, candidate->protocol))
-        {
-            *interface_info = *candidate;
+    for (uint8_t i = 0; i < USB_HOST_MAX_INTERFACES; i++)
+        if (usb_host_get_interface(i, out) && out->class_code == cls &&
+            (sub == 0xff || out->subclass == sub) && (proto == 0xff || out->protocol == proto))
             return true;
-        }
+    return false;
+}
+bool usb_host_find_auth_interface(usb_host_auth_interface_t kind, usb_host_interface_t *out)
+{
+    if (kind == USB_HOST_AUTH_INTERFACE_XINPUT)
+        return usb_host_find_interface(0xff, 0x5d, 1, out);
+    if (kind == USB_HOST_AUTH_INTERFACE_XBOX_GIP)
+        return usb_host_find_interface(0xff, 0x47, 0xd0, out);
+    for (uint8_t i = 0; i < USB_HOST_MAX_INTERFACES; i++)
+        if (usb_host_get_interface(i, out) && out->ps_auth)
+            return true;
+    return false;
+}
+bool usb_host_get_snapshot(usb_host_snapshot_t *s)
+{
+    if (!s)
+        return false;
+    memset(s, 0, sizeof(*s));
+    s->state = usb_host_state();
+    s->controller_ready = ready;
+    s->attached = usb_host_is_attached();
+    s->enumerated = usb_host_is_enumerated();
+    s->device_address = selected;
+    s->generation = next_connection;
+    s->enumeration_attempts = enum_attempts;
+    s->current_fault = fault;
+    s->last_error = last_error;
+    s->fault_generation = fault_generation;
+    if (selected)
+    {
+        tuh_vid_pid_get(selected, &s->vid, &s->pid);
+        s->device_speed = tuh_speed_get(selected);
     }
+    return true;
+}
+uint16_t usb_host_configuration_length(void) { return 0; }
+bool usb_host_copy_configuration(uint8_t *d, uint16_t n, uint16_t *a)
+{
+    (void)d;
+    (void)n;
+    if (a)
+        *a = 0;
     return false;
 }
 
-bool usb_host_find_auth_interface(usb_host_auth_interface_t auth_interface,
-                                  usb_host_interface_t *interface_info)
+uint16_t usb_host_diag(uint8_t page, uint8_t index, uint8_t *out, uint16_t capacity)
 {
-    switch(auth_interface)
+    if (capacity < 32)
+        return 0;
+    if (page == XORA_USB_DIAG_HOST_DEVICE)
     {
-    case USB_HOST_AUTH_INTERFACE_PS4:
-        return usb_host_find_interface(USB_DEV_CLASS_HID,
-                                       USB_HOST_INTERFACE_ANY,
-                                       USB_HOST_INTERFACE_ANY,
-                                       interface_info);
-    case USB_HOST_AUTH_INTERFACE_XINPUT:
-        return usb_host_find_interface(0xFFu, 0x5Du, 0x01u,
-                                       interface_info);
-    case USB_HOST_AUTH_INTERFACE_XBOX_GIP:
-        return usb_host_find_interface(0xFFu, 0x47u, 0xD0u,
-                                       interface_info);
-    default:
-        return false;
-    }
-}
-
-uint16_t usb_host_configuration_length(void)
-{
-    return s_configuration_length;
-}
-
-bool usb_host_copy_configuration(uint8_t *data,
-                                 uint16_t capacity,
-                                 uint16_t *length)
-{
-    if(length != 0)
-    {
-        *length = s_configuration_length;
-    }
-    if((data == 0) || (length == 0) ||
-       (capacity < s_configuration_length) ||
-       (s_configuration_length == 0u))
-    {
-        return false;
-    }
-    memcpy(data, s_config_descriptor, s_configuration_length);
-    return true;
-}
-
-uint8_t usb_host_control_transfer(const uint8_t setup[8],
-                                  uint8_t *data,
-                                  uint8_t data_capacity,
-                                  uint8_t *transferred)
-{
-    uint16_t request_length;
-    uint8_t status;
-    uint8_t actual = 0u;
-
-    if(transferred != 0)
-    {
-        *transferred = 0u;
-    }
-    if(setup == 0)
-    {
-        return ERR_USB_UNKNOWN;
-    }
-
-    request_length = (uint16_t)setup[6] |
-                     ((uint16_t)setup[7] << 8);
-    if((request_length > USB_HOST_CONTROL_MAX_BYTES) ||
-       (request_length > data_capacity) ||
-       ((request_length != 0u) && (data == 0)))
-    {
-        return ERR_USB_BUF_OVER;
-    }
-
-    status = host_prepare_transfer();
-    if(status != ERR_SUCCESS)
-    {
-        return status;
-    }
-    memcpy(pHOST_TX_RAM_Addr, setup, 8u);
-    status = HostCtrlTransfer(data,
-                              (transferred != 0) ? &actual : 0);
-    if(transferred != 0)
-    {
-        *transferred = actual;
-    }
-    host_finish_transfer(status);
-    return status;
-}
-
-uint8_t usb_host_control_transfer_descriptor(const uint8_t setup[8],
-                                             uint8_t *data,
-                                             uint16_t data_capacity,
-                                             uint16_t *transferred)
-{
-    uint16_t request_length;
-    uint8_t status;
-
-    if(transferred != 0)
-    {
-        *transferred = 0u;
-    }
-    if(setup == 0)
-    {
-        return ERR_USB_UNKNOWN;
-    }
-
-    request_length = (uint16_t)setup[6] |
-                     ((uint16_t)setup[7] << 8);
-    if((request_length > USB_HOST_DESCRIPTOR_MAX_BYTES) ||
-       (request_length > data_capacity) ||
-       ((request_length != 0u) && (data == 0)))
-    {
-        return ERR_USB_BUF_OVER;
-    }
-
-    status = host_prepare_transfer();
-    if(status != ERR_SUCCESS)
-    {
-        return status;
-    }
-    memcpy(pHOST_TX_RAM_Addr, setup, 8u);
-    status = host_control_descriptor_raw(data, transferred);
-    host_finish_transfer(status);
-    return status;
-}
-
-uint8_t usb_host_interrupt_in(uint8_t endpoint_address,
-                              uint8_t *data,
-                              uint8_t capacity,
-                              uint8_t *transferred,
-                              uint16_t nak_retry_20us)
-{
-    uint8_t endpoint;
-    uint8_t status;
-    uint8_t received;
-    uint8_t toggle;
-
-    if(transferred != 0)
-    {
-        *transferred = 0u;
-    }
-    endpoint = (uint8_t)(endpoint_address & USB_ENDP_ADDR_MASK);
-    if(((endpoint_address & USB_ENDP_DIR_MASK) == 0u) ||
-       (endpoint == 0u) || (data == 0) ||
-       (capacity == 0u) ||
-       (capacity > USB_HOST_INTERRUPT_MAX_BYTES))
-    {
-        return ERR_USB_UNKNOWN;
-    }
-
-    status = host_prepare_transfer();
-    if(status != ERR_SUCCESS)
-    {
-        return status;
-    }
-
-    toggle = (s_interrupt_in_toggle[endpoint] != 0u)
-        ? (uint8_t)(RB_UH_R_TOG | RB_UH_T_TOG)
-        : 0u;
-    status = USBHostTransact(
-        (uint8_t)((USB_PID_IN << 4) | endpoint),
-        toggle,
-        host_clamp_retry(nak_retry_20us));
-    if(status == ERR_SUCCESS)
-    {
-        received = R8_USB_RX_LEN;
-        if(received > capacity)
+        if (!index || index >= 8)
+            return 0;
+        uint16_t vid = 0, pid = 0;
+        tuh_bus_info_t bus = {0};
+        bool configured = tuh_mounted(index);
+        if (configured)
         {
-            status = ERR_USB_BUF_OVER;
+            tuh_vid_pid_get(index, &vid, &pid);
+            tuh_bus_info_get(index, &bus);
         }
-        else
-        {
-            if(received != 0u)
-            {
-                memcpy(data, pHOST_RX_RAM_Addr, received);
-            }
-            if(transferred != 0)
-            {
-                *transferred = received;
-            }
-            s_interrupt_in_toggle[endpoint] ^= 1u;
-        }
+        out[0] = configured;
+        out[1] = index;
+        out[2] = index > CFG_TUH_DEVICE_MAX;
+        out[3] = configured ? tuh_speed_get(index) : 0xff;
+        usb_diag_put16(out + 4, vid);
+        usb_diag_put16(out + 6, pid);
+        usb_diag_put32(out + 8, connections[index]);
+        out[12] = bus.hub_addr;
+        out[13] = bus.hub_port;
+        return 14;
     }
-    host_finish_transfer(status);
-    return status;
-}
-
-uint8_t usb_host_interrupt_out(uint8_t endpoint_address,
-                               const uint8_t *data,
-                               uint8_t length,
-                               uint16_t nak_retry_20us)
-{
-    uint8_t endpoint;
-    uint8_t status;
-    uint8_t toggle;
-
-    endpoint = (uint8_t)(endpoint_address & USB_ENDP_ADDR_MASK);
-    if(((endpoint_address & USB_ENDP_DIR_MASK) != 0u) ||
-       (endpoint == 0u) ||
-       (length > USB_HOST_INTERRUPT_MAX_BYTES) ||
-       ((length != 0u) && (data == 0)))
+    if (page == XORA_USB_DIAG_HOST)
     {
-        return ERR_USB_UNKNOWN;
+        out[0] = R8_USB_MIS_ST;
+        out[1] = R8_UHOST_CTRL;
+        out[2] = R8_USB_INT_FG;
+        out[3] = usb_host_state();
+        out[4] = ready;
+        out[5] = usb_host_is_attached();
+        out[6] = usb_host_is_enumerated();
+        out[7] = selected;
+        out[8] = enum_attempts;
+        out[9] = last_error;
+        out[10] = tuh_enum_state_get();
+        out[11] = 0;
+        usb_diag_put32(out + 12, session);
+        usb_diag_put32(out + 16, sequence);
+        request_t *r = &requests[0];
+        out[20] = r->state;
+        out[21] = control_setup.bRequest;
+        usb_diag_put16(out + 22, control_setup.wValue);
+        usb_diag_put16(out + 24, r->length);
+        usb_diag_put16(out + 26, r->actual);
+        usb_diag_put32(out + 28, r->generation);
+        return 32;
     }
-
-    status = host_prepare_transfer();
-    if(status != ERR_SUCCESS)
-    {
-        return status;
-    }
-
-    if(length != 0u)
-    {
-        memcpy(pHOST_TX_RAM_Addr, data, length);
-    }
-    R8_UH_TX_LEN = length;
-    toggle = (s_interrupt_out_toggle[endpoint] != 0u)
-        ? (uint8_t)(RB_UH_R_TOG | RB_UH_T_TOG)
-        : 0u;
-    status = USBHostTransact(
-        (uint8_t)((USB_PID_OUT << 4) | endpoint),
-        toggle,
-        host_clamp_retry(nak_retry_20us));
-    if(status == ERR_SUCCESS)
-    {
-        s_interrupt_out_toggle[endpoint] ^= 1u;
-    }
-    host_finish_transfer(status);
-    return status;
+    if (index >= USB_HOST_MAX_INTERFACES)
+        return 0;
+    usb_host_interface_t *i = &interfaces[index];
+    uint16_t vid = 0, pid = 0;
+    out[0] = usb_host_interface_alive(i);
+    out[1] = i->device_address;
+    out[2] = i->number;
+    out[3] = i->class_code;
+    out[4] = i->subclass;
+    out[5] = i->protocol;
+    out[6] = i->ps_auth;
+    out[7] = i->hid_instance;
+    if (i->device_address)
+        tuh_vid_pid_get(i->device_address, &vid, &pid);
+    usb_diag_put16(out + 8, vid);
+    usb_diag_put16(out + 10, pid);
+    usb_diag_put32(out + 12, i->generation);
+    out[16] = i->interrupt_in_endpoint;
+    out[17] = i->interrupt_out_endpoint;
+    out[18] = i->device_address ? tuh_speed_get(i->device_address) : 0xff;
+    return 19;
 }
