@@ -1,0 +1,88 @@
+--- a/src/host/hcd.h
++++ b/src/host/hcd.h
+@@ -79,6 +79,7 @@
+       uint8_t ep_addr;
+       uint8_t result;
+       uint32_t len;
++      uint32_t epoch; /* XORA: reject completion queued before cancel/address reuse */
+     } xfer_complete;
+ 
+     // FUNC_CALL
+@@ -220,6 +221,8 @@
+   hcd_event_handler(&event, in_isr);
+ }
+ 
++bool hcd_xfer_event_valid(uint8_t daddr,uint8_t ep,uint32_t epoch);
++
+ #ifdef __cplusplus
+  }
+ #endif
+--- a/src/host/usbh.c
++++ b/src/host/usbh.c
+@@ -717,6 +717,10 @@
+     }
+     @endcode
+  */
++TU_ATTR_WEAK bool hcd_xfer_event_valid(uint8_t daddr,uint8_t ep,uint32_t epoch) {
++  (void)daddr;(void)ep;(void)epoch;return true;
++}
++
+ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
+   // Skip if stack is not initialized
+   if (!tuh_inited()) {
+@@ -822,6 +826,7 @@
+         break;
+ 
+       case HCD_EVENT_XFER_COMPLETE: {
++        if (!hcd_xfer_event_valid(event.dev_addr, event.xfer_complete.ep_addr, event.xfer_complete.epoch)) break;
+         uint8_t const ep_addr = event.xfer_complete.ep_addr;
+         uint8_t const epnum = tu_edpt_number(ep_addr);
+         uint8_t const ep_dir = (uint8_t) tu_edpt_dir(ep_addr);
+@@ -1238,6 +1243,22 @@
+   return true;
+ }
+ 
++/* XORA: main-loop cancellation of active AND queued control transfers. */
++bool tuh_control_abort_token(uint8_t daddr, uintptr_t token) {
++  bool found = false;
++  unsigned count = tu_fifo_count(&_usbh_pending_ctrl_q) / sizeof(usbh_pending_ctrl_t);
++  for (unsigned i = 0; i < count; i++) {
++    usbh_pending_ctrl_t entry;
++    if (tu_fifo_read_n(&_usbh_pending_ctrl_q, &entry, sizeof(entry)) != sizeof(entry)) break;
++    if (entry.daddr == daddr && entry.user_data == token) found = true;
++    else tu_fifo_write_n(&_usbh_pending_ctrl_q, &entry, sizeof(entry));
++  }
++  usbh_ctrl_xfer_info_t *info = &_usbh_data.ctrl_xfer_info;
++  if (info->stage != CONTROL_STAGE_IDLE && info->daddr == daddr && info->user_data == token)
++    return tuh_edpt_abort_xfer(daddr, 0);
++  return found;
++}
++
+ bool tuh_edpt_abort_xfer(uint8_t daddr, uint8_t ep_addr) {
+   TU_LOG_USBH("[%u] Aborted transfer on EP %02X\r\n", daddr, ep_addr);
+   const uint8_t epnum = tu_edpt_number(ep_addr);
+@@ -1884,7 +1905,10 @@
+ }
+ 
+ // process device enumeration
++static uint8_t diagnostic_enum_phase;
++uint8_t tuh_enum_state_get(void) { return diagnostic_enum_phase; }
+ static void process_enumeration(tuh_xfer_t *xfer) {
++  diagnostic_enum_phase = (uint8_t)xfer->user_data;
+   if (XFER_RESULT_FAILED == xfer->result) {
+     enum_full_complete(false); // failed to enum
+     return;
+--- a/src/host/usbh.h
++++ b/src/host/usbh.h
+@@ -398,6 +398,11 @@
+   TU_API_SYNC(tuh_descriptor_get_serial_string, daddr, language_id, buffer, len);
+ }
+ 
++/* XORA: cancel exactly one async control request, including queued requests. */
++bool tuh_control_abort_token(uint8_t daddr, uintptr_t token);
++
++uint8_t tuh_enum_state_get(void); /* XORA read-only diagnostic phase */
++
+ #ifdef __cplusplus
+  }
+ #endif

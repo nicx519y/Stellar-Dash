@@ -1,0 +1,4 @@
+# Preserve the pinned snapshot and recorded hashes on Windows checkouts.
+src/** -text
+LICENSE -text
+README.rst -text

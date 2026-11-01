@@ -34,6 +34,7 @@ RM      := if exist "$(subst /,\,$(OUT_DIR))" rmdir /s /q "$(subst /,\,$(OUT_DIR
 APP_DIR      := APP
 BOARD_DIR    := BOARD
 USB_DIR      := USB
+TINYUSB_DIR := third_party/tinyusb/src
 COMMON_INC_DIR := ../Common/include
 REPO_COMMON_DIR := ../../common
 HAL_DIR      := $(BLE_SDK_DIR)/HAL
@@ -65,6 +66,7 @@ INCLUDES := \
 	-I$(APP_DIR)/include \
 	-I$(BOARD_DIR) \
 	-I$(USB_DIR) \
+	-I$(TINYUSB_DIR) \
 	-I$(COMMON_INC_DIR) \
 	-I$(REPO_COMMON_DIR) \
 	-I$(HAL_DIR)/include \
@@ -117,6 +119,7 @@ LIBS := \
 APP_SRCS := $(wildcard $(APP_DIR)/*.c)
 BOARD_SRCS := $(wildcard $(BOARD_DIR)/*.c)
 USB_SRCS := $(wildcard $(USB_DIR)/*.c)
+TINYUSB_SRCS := $(TINYUSB_DIR)/tusb.c $(TINYUSB_DIR)/common/tusb_fifo.c $(TINYUSB_DIR)/host/usbh.c $(TINYUSB_DIR)/host/hub.c $(TINYUSB_DIR)/class/hid/hid_host.c
 COMMON_CODEC_SRC := $(REPO_COMMON_DIR)/usb_board_link_codec.c
 HAL_SRCS := $(wildcard $(HAL_DIR)/*.c)
 LIB_SRCS := $(wildcard $(LIB_DIR)/*.S)
@@ -147,7 +150,7 @@ DRV_EXCLUDE := \
 APP_STARTUP_SRC := $(APP_STARTUP_DIR)/startup_CH585.S
 IAP_STARTUP_SRC := $(IAP_STARTUP_DIR)/startup_CH585.S
 
-LOCAL_SRCS := $(filter-out $(APP_EXCLUDE),$(APP_SRCS)) $(BOARD_SRCS) $(USB_SRCS)
+LOCAL_SRCS := $(filter-out $(APP_EXCLUDE),$(APP_SRCS)) $(BOARD_SRCS) $(USB_SRCS) $(TINYUSB_SRCS)
 HAL_BUILD_SRCS := $(filter-out $(HAL_EXCLUDE),$(HAL_SRCS))
 DRV_BUILD_SRCS := $(filter-out $(DRV_EXCLUDE),$(DRV_SRCS))
 SRCS := $(LOCAL_SRCS) $(HAL_BUILD_SRCS) $(LIB_SRCS) $(DRV_BUILD_SRCS) $(APP_STARTUP_SRC)
